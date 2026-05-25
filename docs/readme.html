@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>3D沉浸式实时语音交互视频 - 说明文档</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101412;
+        --bg-soft: #141a17;
+        --panel: rgba(24, 29, 26, 0.9);
+        --panel-2: rgba(255, 255, 255, 0.045);
+        --line: rgba(255, 255, 255, 0.12);
+        --line-strong: rgba(139, 215, 197, 0.44);
+        --text: #f3f1e8;
+        --muted: #aab0a6;
+        --soft: rgba(243, 241, 232, 0.72);
+        --accent: #8bd7c5;
+        --accent-2: #e2b866;
+        --danger: #ee8371;
+        --shadow: 0 24px 90px rgba(0, 0, 0, 0.38);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Microsoft YaHei", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          radial-gradient(circle at 18% -6%, rgba(139, 215, 197, 0.16), transparent 28rem),
+          radial-gradient(circle at 86% 6%, rgba(226, 184, 102, 0.1), transparent 24rem),
+          linear-gradient(155deg, #151813 0%, #0f1416 48%, #17130f 100%);
+        color: var(--text);
+        line-height: 1.72;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      strong {
+        color: var(--text);
+      }
+
+      code {
+        padding: 0.12rem 0.36rem;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: rgba(0, 0, 0, 0.24);
+        color: var(--accent-2);
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.92em;
+      }
+
+      .page-shell {
+        min-height: 100vh;
+      }
+
+      .hero {
+        position: relative;
+        min-height: 54vh;
+        display: grid;
+        align-items: end;
+        overflow: hidden;
+        border-bottom: 1px solid var(--line);
+        isolation: isolate;
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -2;
+        background:
+          linear-gradient(90deg, rgba(7, 9, 8, 0.92) 0%, rgba(7, 9, 8, 0.64) 48%, rgba(7, 9, 8, 0.28) 100%);
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background:
+          linear-gradient(180deg, transparent 0%, rgba(16, 20, 18, 0.86) 100%),
+          radial-gradient(circle at 34% 20%, rgba(139, 215, 197, 0.16), transparent 26rem);
+      }
+
+      .hero-inner {
+        position: relative;
+        z-index: 2;
+        width: min(1180px, calc(100vw - 44px));
+        margin: 0 auto;
+        padding: 96px 0 58px;
+      }
+
+      .hero-video {
+        position: absolute;
+        inset: 0;
+        z-index: -3;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.5;
+      }
+
+      .topline {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 18px;
+      }
+
+      .badge,
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        border: 1px solid rgba(139, 215, 197, 0.38);
+        border-radius: 999px;
+        padding: 0 10px;
+        background: rgba(139, 215, 197, 0.1);
+        color: var(--accent);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .tag {
+        border-color: rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.06);
+        color: var(--soft);
+        font-weight: 700;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        max-width: 920px;
+        font-size: clamp(34px, 5.6vw, 72px);
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .hero p {
+        max-width: 760px;
+        margin-top: 22px;
+        color: rgba(243, 241, 232, 0.8);
+        font-size: 18px;
+      }
+
+      .layout {
+        width: min(1180px, calc(100vw - 44px));
+        display: grid;
+        grid-template-columns: 232px minmax(0, 1fr);
+        gap: 36px;
+        margin: 0 auto;
+        padding: 34px 0 72px;
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 18px;
+        align-self: start;
+        max-height: calc(100vh - 36px);
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(10, 13, 12, 0.58);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+
+      .sidebar strong {
+        display: block;
+        padding: 14px 14px 10px;
+        color: var(--soft);
+        font-size: 12px;
+      }
+
+      .sidebar a {
+        display: block;
+        padding: 9px 14px;
+        border-top: 1px solid rgba(255, 255, 255, 0.07);
+        color: var(--muted);
+        font-size: 13px;
+        transition:
+          color 0.18s ease,
+          background 0.18s ease;
+      }
+
+      .sidebar a:hover,
+      .sidebar a.active {
+        background: rgba(139, 215, 197, 0.1);
+        color: var(--accent);
+      }
+
+      main {
+        min-width: 0;
+      }
+
+      section {
+        scroll-margin-top: 24px;
+        padding: 34px;
+        margin-bottom: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      h2 {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+        color: var(--text);
+        font-size: clamp(24px, 3vw, 36px);
+        line-height: 1.15;
+      }
+
+      h2::before {
+        content: "";
+        width: 8px;
+        height: 32px;
+        border-radius: 999px;
+        background: linear-gradient(180deg, var(--accent), var(--accent-2));
+        flex: 0 0 auto;
+      }
+
+      h3 {
+        margin: 22px 0 10px;
+        color: var(--text);
+        font-size: 20px;
+        line-height: 1.25;
+      }
+
+      h4 {
+        color: var(--accent-2);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .lead {
+        color: var(--soft);
+        font-size: 17px;
+      }
+
+      p + p,
+      p + ul,
+      ul + p {
+        margin-top: 12px;
+      }
+
+      ul,
+      ol {
+        margin: 12px 0 0;
+        padding-left: 1.25rem;
+        color: var(--soft);
+      }
+
+      li + li {
+        margin-top: 8px;
+      }
+
+      .grid {
+        display: grid;
+        gap: 16px;
+        margin-top: 18px;
+      }
+
+      .grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 18px;
+        background: var(--panel-2);
+      }
+
+      .card h3 {
+        margin-top: 6px;
+      }
+
+      .card p {
+        color: var(--soft);
+      }
+
+      .highlight {
+        border-color: rgba(139, 215, 197, 0.28);
+        background: rgba(139, 215, 197, 0.08);
+      }
+
+      .meta {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin: 20px 0 2px;
+      }
+
+      .meta .card span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .meta .card b {
+        display: block;
+        margin-top: 6px;
+        color: var(--text);
+        font-size: 15px;
+      }
+
+      figure {
+        margin: 20px 0 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+        background: rgba(0, 0, 0, 0.24);
+      }
+
+      figure img {
+        display: block;
+        width: 100%;
+        max-height: 520px;
+        object-fit: contain;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      figcaption {
+        padding: 10px 12px;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .figure-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .callout {
+        margin-top: 18px;
+        padding: 18px;
+        border: 1px solid rgba(226, 184, 102, 0.36);
+        border-radius: 8px;
+        background: rgba(226, 184, 102, 0.08);
+        color: rgba(243, 241, 232, 0.82);
+      }
+
+      .flow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-top: 16px;
+      }
+
+      .flow span {
+        min-height: 34px;
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 0 12px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--soft);
+        font-size: 13px;
+      }
+
+      .flow i {
+        color: var(--accent-2);
+        font-style: normal;
+      }
+
+      .footer {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .sidebar {
+          position: relative;
+          top: auto;
+          max-height: none;
+        }
+
+        .meta,
+        .grid-2,
+        .grid-3,
+        .figure-grid {
+          grid-template-columns: 1fr;
+        }
+
+        section {
+          padding: 24px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .hero-inner {
+          padding: 84px 0 44px;
+        }
+
+        .layout {
+          width: min(100% - 28px, 1180px);
+          gap: 20px;
+        }
+
+        section {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="hero">
+        <video
+          class="hero-video"
+          autoplay
+          muted
+          loop
+          playsinline
+          src="../public/uploads/b79017f796b496be6abec3d619919f32.mp4"
+        ></video>
+        <div class="hero-inner">
+          <div class="topline">
+            <span class="badge">说明文档</span>
+            <span class="tag">荒岛求生</span>
+            <span class="tag">3D沉浸式实时语音交互视频</span>
+          </div>
+          <h1>3D沉浸式实时语音交互视频</h1>
+          <p>
+            本文档从用户洞察、产品方案、AI 原生能力、落地可行性与商业化路径出发，说明如何把线性视频升级为可对话、可探索、可影响剧情的互动叙事体验。
+          </p>
+        </div>
+      </header>
+
+      <div class="layout">
+        <nav class="sidebar" aria-label="文档导航">
+          <strong>目录</strong>
+          <a href="#overview">项目概览</a>
+          <a href="#users">用户洞察</a>
+          <a href="#pain">用户痛点</a>
+          <a href="#scenes">使用场景</a>
+          <a href="#solution">产品方案</a>
+          <a href="#architecture">产品架构</a>
+          <a href="#difference">创新差异</a>
+          <a href="#ai">AI 原生能力</a>
+          <a href="#workflow">AI 技术方案</a>
+          <a href="#feasibility">落地可行性</a>
+          <a href="#business">商业化思考</a>
+          <a href="#upgrade">存量内容改造</a>
+        </nav>
+
+        <main>
+          <section id="overview">
+            <h2>项目概览</h2>
+            <p class="lead">
+              <strong>荒岛求生</strong> 是一款面向沉浸式互动叙事的原型产品。它结合 AI 大模型、三维视差感知、实时语音交互与可视化创作工具，让用户从“观看故事”转向“参与故事”。
+            </p>
+            <div class="meta">
+              <div class="card">
+                <span>产品定位</span>
+                <b>沉浸式互动视频 + 创作平台</b>
+              </div>
+              <div class="card">
+                <span>核心体验</span>
+                <b>三维视差 + 实时语音对话</b>
+              </div>
+              <div class="card">
+                <span>用户侧入口</span>
+                <b>演示页 / 最终页</b>
+              </div>
+              <div class="card">
+                <span>创作者侧入口</span>
+                <b>可视化编辑页</b>
+              </div>
+            </div>
+            <div class="grid grid-3">
+              <article class="card highlight">
+                <h4>Participation</h4>
+                <h3>从观看到参与</h3>
+                <p>用户不再只能评论或选择固定按钮，而是可以用自然语言表达判断，并让表达进入剧情系统。</p>
+              </article>
+              <article class="card highlight">
+                <h4>Immersion</h4>
+                <h3>从画面到空间</h3>
+                <p>通过摄像头识别视角变化，画面可根据头部移动产生视差，让用户主动观察环境细节。</p>
+              </article>
+              <article class="card highlight">
+                <h4>Creation</h4>
+                <h3>从作品到工具</h3>
+                <p>创作者可以用低门槛编辑工具搭建互动剧情、配置分支逻辑，并借助 AI 生成内容素材。</p>
+              </article>
+            </div>
+          </section>
+
+          <section id="users">
+            <h2>用户洞察</h2>
+            <p class="lead">
+              内容消费正在从“看完一个故事”走向“参与这个故事”。刷弹幕、猜剧情、代入角色、讨论选择，本质上都说明用户希望自己的判断和表达能对内容产生影响。
+            </p>
+            <div class="grid grid-3">
+              <article class="card">
+                <h3>内容深度用户</h3>
+                <p>Z 世代和年轻职场人长期活跃在 Bilibili、抖音等平台，对互动内容接受度高，也更愿意表达观点。他们在观看解谜、反转、剧情类内容时，常常会主动推理、做判断，甚至替角色做决定。</p>
+              </article>
+              <article class="card">
+                <h3>剧情向轻度玩家</h3>
+                <p>这类用户认可“选择影响剧情”的体验，但传统剧情游戏时间成本高，固定选项也限制了自由表达。他们需要更轻量、更自然的互动方式。</p>
+              </article>
+              <article class="card">
+                <h3>内容创作者</h3>
+                <p>短视频博主、剧情类创作者和品牌内容团队越来越需要形式创新。互动叙事具备传播潜力，但制作门槛高、流程复杂，创作者需要更易用的工具。</p>
+              </article>
+            </div>
+            <figure>
+              <img src="assets/manual/page-03-01.jpg" alt="剧情互动游戏用户参考图" />
+              <figcaption>剧情向互动体验的用户参考：分支叙事游戏已经证明“选择影响故事”具备吸引力。</figcaption>
+            </figure>
+          </section>
+
+          <section id="pain">
+            <h2>用户痛点</h2>
+            <div class="grid grid-2">
+              <article class="card">
+                <h3>被动观看的结构性局限</h3>
+                <p>传统长视频采用线性叙事，用户即使产生判断、情绪或选择冲动，也无法干预剧情发展，只能被动接受结果。在强调参与与体验的内容环境中，这种单向输出逐渐显露不足。</p>
+              </article>
+              <article class="card">
+                <h3>现有互动形式自由度低</h3>
+                <p>评论和弹幕只能增强共鸣，无法影响剧情本身；选择式互动大多依赖固定 A/B/C 选项，预设分支有限，用户体验更像流程解锁，而不是自由参与。</p>
+              </article>
+              <article class="card">
+                <h3>沉浸体验的感官割裂</h3>
+                <p>当前视频仍以二维屏幕为主，视角固定，角色互动单向。VR 或 3D 内容又存在设备门槛、内容供给和自然交互问题，因此需要一种低门槛但高沉浸的中间形态。</p>
+              </article>
+              <article class="card">
+                <h3>创作端技术壁垒高</h3>
+                <p>互动视频要求分支剧情设计、开发能力和三维效果制作，直接导致内容供给不足，也让互动叙事难以进入大众创作场景。</p>
+              </article>
+            </div>
+            <div class="callout">
+              问题的本质是：用户的认知参与没有被转化为叙事变量，创作者的内容想法也缺少低门槛的落地工具。
+            </div>
+          </section>
+
+          <section id="scenes">
+            <h2>使用场景</h2>
+            <h3>个人沉浸体验</h3>
+            <p class="lead">
+              在夜晚或周末的个人娱乐时间，用户打开一条标注为“可参与剧情”的视频。系统通过摄像头完成简单校准，画面呈现荒岛环境，角色开始与用户对话。用户可以直接说出自己的判断，例如优先寻找水源或生火，剧情也会随着表达发生变化。
+            </p>
+            <p>
+              随着故事推进，用户会通过头部移动观察被遮挡区域、确认线索，逐渐从观看者转变为参与者。系统记录其决策并影响结果，最终形成具有个人行为特征的结局。
+            </p>
+            <h3>社交传播与内容讨论</h3>
+            <p>
+              用户完成一次互动后，可以将自己的结果分享到社交平台。不同用户会因为选择路径不同触发不同走向，甚至发现隐藏情节，讨论重点也从“剧情好不好看”转向“你是如何做出选择的”。
+            </p>
+            <h3>创作者内容升级</h3>
+            <p>
+              创作者可以把原有线性视频改造成互动版本，通过简单设置实现分支逻辑与多结局结构，使内容从一次性消费转变为可反复体验，从而提升停留时长与传播效率。
+            </p>
+          </section>
+
+          <section id="solution">
+            <h2>产品方案</h2>
+            <p class="lead">
+              产品以“沉浸式互动视频 + 创作平台工具”为核心，将传统线性视频转变为可参与、可对话、可探索的动态叙事体验。用户不再通过点击选项影响剧情，而是以自然语言表达判断，并通过视角移动参与信息获取。
+            </p>
+            <div class="grid grid-3">
+              <article class="card">
+                <h3>视觉层</h3>
+                <p>基于摄像头的三维视差系统识别用户眼部位置与视角变化，对画面进行实时调整。用户轻微侧头时，可以看到原本被遮挡的信息，主动发现线索。</p>
+              </article>
+              <article class="card">
+                <h3>交互层</h3>
+                <p>AI 语音对话替代传统选项操作。用户与剧情角色自然交流，系统通过语音识别和大模型理解意图，生成符合角色设定的回应并推动剧情分支。</p>
+              </article>
+              <article class="card">
+                <h3>创作层</h3>
+                <p>创作者通过流程图式工具搭建剧情结构，为节点设置触发条件，并通过图层化方式快速构建三维视差效果。AI 可辅助生成角色设定、对话和分支建议。</p>
+              </article>
+            </div>
+            <div class="figure-grid">
+              <figure>
+                <img src="assets/manual/page-06-01.jpg" alt="视频介绍界面" />
+                <figcaption>视频介绍界面：面向体验者说明项目与入口。</figcaption>
+              </figure>
+              <figure>
+                <img src="assets/manual/page-06-02.jpg" alt="创作平台界面" />
+                <figcaption>创作平台界面：面向创作者提供场景与图层编辑能力。</figcaption>
+              </figure>
+            </div>
+          </section>
+
+          <section id="architecture">
+            <h2>产品架构</h2>
+            <p class="lead">
+              产品采用三层页面架构，从用户交互到底层服务实现清晰分工，并通过编辑页、演示页、最终页三种模式兼顾创作、体验与发布。
+            </p>
+            <div class="figure-grid">
+              <figure>
+                <img src="assets/manual/page-07-01.jpg" alt="编辑页界面" />
+                <figcaption>编辑页：Canvas 三维场景编辑器，支持素材管理与场景配置。</figcaption>
+              </figure>
+              <figure>
+                <img src="assets/manual/page-07-02.jpg" alt="产品架构图" />
+                <figcaption>产品架构速览：创作者、体验者、叙事引擎与 AI 服务共同构成闭环。</figcaption>
+              </figure>
+            </div>
+            <div class="grid grid-3">
+              <article class="card">
+                <h3>编辑页 <code>index.html</code></h3>
+                <ul>
+                  <li>为创作者提供 Canvas 三维场景编辑器。</li>
+                  <li>支持导入 PNG、GIF、视频、音频素材，通过 <code>POST /api/assets</code> 存入本地素材库。</li>
+                  <li>可视化调整图层位置、深度、缩放、旋转、倾斜，通过 <code>POST /api/layout</code> 保存到 <code>data/scene-layout-db.json</code>。</li>
+                </ul>
+              </article>
+              <article class="card">
+                <h3>演示页 <code>viewer.html</code></h3>
+                <ul>
+                  <li>负责场景播放与视线追踪，实现裸眼三维视差效果。</li>
+                  <li>通过 <code>getUserMedia</code> 调用摄像头，实现用户视线或头部追踪。</li>
+                  <li>通过 <code>GET /api/layout?id=sceneId</code> 获取场景配置，并用 Canvas 和 DOM 媒体层恢复画面。</li>
+                </ul>
+              </article>
+              <article class="card">
+                <h3>最终页 <code>final.html</code></h3>
+                <ul>
+                  <li>承载完整互动叙事体验，包含语音交互与剧情驱动。</li>
+                  <li>麦克风识别用户语音，转写为文本指令。</li>
+                  <li>AI 识别关键词和语义意图，切换目标场景或生成角色回应。</li>
+                </ul>
+              </article>
+            </div>
+            <div class="flow">
+              <span>用户语音与行为输入</span>
+              <i>→</i>
+              <span>语义理解与行为识别</span>
+              <i>→</i>
+              <span>叙事状态更新</span>
+              <i>→</i>
+              <span>角色回应与剧情推进</span>
+              <i>→</i>
+              <span>语音、字幕、画面输出</span>
+            </div>
+          </section>
+
+          <section id="difference">
+            <h2>创新差异</h2>
+            <p class="lead">
+              本方案的创新不只是技术叠加，而是重新定义视频叙事中用户的位置。用户既可以决定“做什么”，也可以通过视角变化决定“看什么”。
+            </p>
+            <div class="grid grid-2">
+              <article class="card">
+                <h3>实时与角色对话</h3>
+                <p>产品将传统的选项点击转变为自然语言表达，让用户从被动选择预设路径，转变为主动参与叙事过程。</p>
+              </article>
+              <article class="card">
+                <h3>自主决定视角</h3>
+                <p>用户不只影响行动，还可以通过视角变化参与信息获取。隐藏线索、场景细节和空间关系都可以成为叙事变量。</p>
+              </article>
+            </div>
+            <div class="callout">
+              产品不是简单给视频增加互动按钮，而是把视频升级为可以被进入、被探索、被参与的叙事系统。
+            </div>
+          </section>
+
+          <section id="ai">
+            <h2>AI 原生能力</h2>
+            <p class="lead">
+              AI 的核心价值在于把开放语言和用户行为转化为剧情变量，让用户从不可干预的观看者变成能影响剧情的参与者。
+            </p>
+            <div class="grid grid-2">
+              <article class="card">
+                <h3>使用到的 AI 能力</h3>
+                <ul>
+                  <li>大模型剧情生成：ChatGPT</li>
+                  <li>AI 图像生成：ChatGPT Image 2</li>
+                  <li>AI 视频生成：TapNow / Seedance 1.5 / 2.0</li>
+                  <li>AI 音乐生成：Minimax Music 2.6</li>
+                  <li>自然语言低代码开发：Codex</li>
+                  <li>自然语言理解与意图识别：Kimi / Moonshot</li>
+                  <li>AI 语音合成：讯飞 TTS</li>
+                </ul>
+              </article>
+              <article class="card">
+                <h3>AI 解决的问题</h3>
+                <ul>
+                  <li>理解用户自由表达，而不是限制在固定选项。</li>
+                  <li>根据角色人设和剧情状态生成实时回复。</li>
+                  <li>将用户语音、情绪倾向和关键指令转化为剧情触发条件。</li>
+                  <li>把文本台词合成为符合角色设定的语音音频。</li>
+                </ul>
+              </article>
+            </div>
+            <p>
+              系统通过 Moonshot/Kimi 大模型 API 理解用户语音转写文本，解析剧情决策、对话内容、情绪倾向和关键指令，触发场景跳转或角色交互指令。随后，Kimi 基于角色人设与剧情设定生成符合世界观的回复，并通过讯飞 TTS WebSocket API 转化为可播放语音，形成用户提问与角色实时回复的闭环。
+            </p>
+          </section>
+
+          <section id="workflow">
+            <h2>AI 技术方案</h2>
+            <h3>创作工作流中的 AI</h3>
+            <div class="grid grid-3">
+              <article class="card">
+                <h3>编剧环节</h3>
+                <p>将主线剧情输入 ChatGPT，由 AI 辅助生成分支剧情、主角人设 Prompt 与世界观设定，快速搭建多分支叙事框架。</p>
+              </article>
+              <article class="card">
+                <h3>美术与配乐</h3>
+                <p>手绘分镜草图搭配参考图，用 ChatGPT Image 2 生成统一画风的场景和角色素材；使用 TapNow / Seedance 生成视频，使用 Minimax Music 2.6 生成配乐。</p>
+              </article>
+              <article class="card">
+                <h3>开发环节</h3>
+                <p>基于开源三维项目，通过 Codex 自然语言开发完成 Canvas 三维场景编辑器、视线追踪功能，并接入 Kimi 与讯飞 TTS 搭建语音交互闭环。</p>
+              </article>
+            </div>
+            <div class="figure-grid">
+              <figure>
+                <img src="assets/manual/page-10-01.jpg" alt="AI 生成男主角形象" />
+                <figcaption>AI 生成的男主角形象。</figcaption>
+              </figure>
+              <figure>
+                <img src="assets/manual/page-10-02.jpg" alt="草图与 AI 场景生成对照" />
+                <figcaption>部分草图与 AI 生成场景对照。</figcaption>
+              </figure>
+            </div>
+            <figure>
+              <img src="assets/manual/page-11-01.jpg" alt="TapNow 中生成视频与音乐" />
+              <figcaption>在 TapNow 中生成视频与音乐，后续通过 PS、剪映完成抠图和剪辑。</figcaption>
+            </figure>
+            <h3>用户核心体验流程</h3>
+            <div class="grid grid-3">
+              <article class="card">
+                <h3>自由探索画面的 3D 效果</h3>
+                <p>摄像头采集用户面部数据，实时追踪视线与头部位置，计算视差参数并驱动 Canvas 场景图层更新，实现随用户视角变化的透视效果。</p>
+              </article>
+              <article class="card">
+                <h3>自然语言理解与场景流转</h3>
+                <p>用户语音转写为文本后发送至 Kimi/Moonshot API，AI 解析发言内容，匹配预设剧情逻辑，识别决策、情绪和关键指令。</p>
+              </article>
+              <article class="card">
+                <h3>实时对话生成与语音输出</h3>
+                <p>大模型根据角色人设与剧情设定生成台词，讯飞 TTS 实时合成角色音色，浏览器播放音频，完成实时对话闭环。</p>
+              </article>
+            </div>
+          </section>
+
+          <section id="feasibility">
+            <h2>落地可行性</h2>
+            <p class="lead">
+              项目以“先验证体验、再扩展供给”为路线：先通过互动视频 Demo 验证用户是否愿意以说话和行为参与剧情，再逐步强化 AI 叙事能力，最终开放创作平台。
+            </p>
+            <figure>
+              <img src="assets/manual/page-12-01.jpg" alt="三阶段产品路线图" />
+              <figcaption>三阶段产品路线图：体验验证、AI 叙事强化、创作平台开放。</figcaption>
+            </figure>
+            <div class="grid grid-3">
+              <article class="card">
+                <h3>第一阶段：互动视频 Demo</h3>
+                <p>通过三维视差、语音交互与基础分支逻辑，验证用户是否愿意从观看转向参与。</p>
+              </article>
+              <article class="card">
+                <h3>第二阶段：AI 叙事能力</h3>
+                <p>引入剧情状态管理、对话记忆机制和多轮上下文理解，使用户行为持续影响叙事走向。</p>
+              </article>
+              <article class="card">
+                <h3>第三阶段：创作平台</h3>
+                <p>提供低门槛创作工具，让创作者以流程图方式构建剧情结构，并由 AI 承担内容生成与补全。</p>
+              </article>
+            </div>
+            <p>
+              从技术角度看，三维视差与头部追踪可以基于现有前端技术实现，语音识别和语音合成已经成熟落地，大语言模型也为自然语言交互与动态内容生成提供了基础能力。核心挑战主要在交互延迟、叙事一致性和状态管理复杂度，属于工程优化问题。
+            </p>
+          </section>
+
+          <section id="business">
+            <h2>商业化思考</h2>
+            <p class="lead">
+              产品的商业价值不只在单个互动视频变现，更在于构建新的内容生产与消费体系。互动视频体验负责吸引用户、验证需求，创作平台能力负责扩大供给、形成规模。
+            </p>
+            <figure>
+              <img src="assets/manual/page-13-01.jpg" alt="商业版图" />
+              <figcaption>商业版图：用户体验、创作平台、品牌合作与 AI 原生叙事平台共同构成增长路径。</figcaption>
+            </figure>
+            <div class="grid grid-2">
+              <article class="card">
+                <h3>用户侧付费</h3>
+                <p>互动叙事内容具备更强参与感与沉浸感，可以提升停留时长和重复体验意愿，为高质量剧情付费、不同结局解锁等模式提供基础。</p>
+              </article>
+              <article class="card">
+                <h3>创作者工具收入</h3>
+                <p>创作平台可以提供高级编辑功能、AI 生成额度、数据分析服务等稳定收入来源，形成视频编辑工具与 AI 创作工具结合的新形态。</p>
+              </article>
+              <article class="card">
+                <h3>品牌内容合作</h3>
+                <p>品牌可以通过定制剧情，把产品或理念融入用户决策路径，让广告从被观看转变为被体验，并获得更细致的用户洞察。</p>
+              </article>
+              <article class="card">
+                <h3>AI 原生叙事平台</h3>
+                <p>随着用户在不同内容中的互动行为积累，选择路径与互动方式可以成为个性化数据基础，影响未来内容生成方向。</p>
+              </article>
+            </div>
+          </section>
+
+          <section id="upgrade">
+            <h2>存量内容改造</h2>
+            <p class="lead">
+              除原创互动叙事外，产品还可以对已有影视、短剧、动漫和 IP 内容进行 AI 互动化升级，激活老内容的二次生命周期。
+            </p>
+            <div class="figure-grid">
+              <figure>
+                <img src="assets/manual/page-14-01.jpg" alt="改造后的热播剧主角界面" />
+                <figcaption>改造后的热播剧《主角》：用户可以进入角色空间并进行互动。</figcaption>
+              </figure>
+              <figure>
+                <img src="assets/manual/page-14-02.jpg" alt="舞台场景互动界面" />
+                <figcaption>二维视频可被重新构建为空间化场景，提升沉浸感和探索感。</figcaption>
+              </figure>
+            </div>
+            <div class="grid grid-2">
+              <article class="card">
+                <h3>低成本空间化重构</h3>
+                <p>通过三维视差技术，原有二维视频可以被重新构建为空间化场景。悬疑内容中用户可主动观察环境，情感内容中用户可更近距离进入角色空间。</p>
+              </article>
+              <article class="card">
+                <h3>可参与剧情升级</h3>
+                <p>AI 语音交互让用户在关键节点与角色实时交流、提出建议，甚至触发不同结局。例如替角色解释、推进调查方向、改变遗憾结局或与角色建立互动关系。</p>
+              </article>
+              <article class="card">
+                <h3>提升复播与用户洞察</h3>
+                <p>互动化改造可以提升老内容复播率、停留时长与讨论度，同时沉淀用户行为数据，用于内容推荐、广告匹配和 IP 开发。</p>
+              </article>
+              <article class="card">
+                <h3>改造效率更高</h3>
+                <p>相比重新制作完整互动游戏，基于原有影视内容的互动化升级成本更低、效率更高，也更符合长视频与短视频平台的内容生产逻辑。</p>
+              </article>
+            </div>
+            <p class="footer">
+              从行业角度看，未来的视频平台可能不再只是内容播放平台，而会逐渐转向内容体验平台。AI 驱动的互动叙事能力，有机会成为下一代内容增长的重要基础设施。
+            </p>
+          </section>
+        </main>
+      </div>
+    </div>
+
+    <script>
+      const sections = document.querySelectorAll("main section[id]");
+      const links = document.querySelectorAll(".sidebar a");
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            links.forEach((link) => link.classList.remove("active"));
+            document
+              .querySelector(`.sidebar a[href="#${entry.target.id}"]`)
+              ?.classList.add("active");
+          });
+        },
+        { rootMargin: "-25% 0px -65% 0px" },
+      );
+      sections.forEach((section) => observer.observe(section));
+    </script>
+  </body>
+</html>
