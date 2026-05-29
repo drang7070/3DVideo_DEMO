@@ -1600,7 +1600,7 @@
           "webmLoop": false,
           "flow": {
             "mode": "auto",
-            "nextSceneId": "default",
+            "nextSceneId": "e1-mpqedd7v",
             "routes": [
               {
                 "keywords": "杀",
@@ -1633,7 +1633,7 @@
           }
         ]
       },
-      "updatedAt": "2026-05-24T10:49:28.146Z"
+      "updatedAt": "2026-05-29T04:03:53.204Z"
     },
     "y3-mouapwaz": {
       "name": "Y3",
@@ -3113,11 +3113,72 @@
         ]
       },
       "updatedAt": "2026-05-24T14:09:56.986Z"
+    },
+    "e1-mpqedd7v": {
+      "name": "E1",
+      "payload": {
+        "id": "e1-mpqedd7v",
+        "name": "E1",
+        "scene": {
+          "focal": 720,
+          "parallax": 130,
+          "showGrid": true,
+          "audioAsset": {
+            "key": "uploads/A1-1.mp3",
+            "name": "A1-1.mp3",
+            "url": "/uploads/A1-1.mp3",
+            "type": "audio/mpeg",
+            "size": 43935
+          },
+          "audioLoop": false,
+          "gifLoop": true,
+          "webmLoop": true,
+          "flow": {
+            "mode": "none",
+            "nextSceneId": "",
+            "routes": []
+          },
+          "xfyunVoice": "x6_lingfeiyi_pro",
+          "ageRequired": false,
+          "realtimeReply": false
+        },
+        "items": [
+          {
+            "id": "24529146-3fd8-499f-af27-b981d6ce2281",
+            "name": "1.gif",
+            "assetKey": "uploads/1.gif",
+            "assetUrl": "/uploads/1.gif",
+            "assetType": "image/gif",
+            "x": -6.7484375000000005,
+            "y": 66.28020833333329,
+            "z": -180.125,
+            "scale": 1.7060000000000002,
+            "rotation": 0,
+            "tilt": 0,
+            "alpha": 1
+          },
+          {
+            "id": "acc97dec-91a3-4578-9173-0288d0f290d5",
+            "name": "T5-2-1.webm",
+            "assetKey": "uploads/T5-2-1.webm",
+            "assetUrl": "/uploads/T5-2-1.webm",
+            "assetType": "video/webm",
+            "x": 0,
+            "y": 38.400000000000034,
+            "z": 600,
+            "scale": 1.7060000000000002,
+            "rotation": -0.012217304763960324,
+            "tilt": 0,
+            "alpha": 1
+          }
+        ]
+      },
+      "updatedAt": "2026-05-29T04:09:24.311Z"
     }
   },
   "settings": {
     "finalStartSceneId": "a1-mos899qj",
-    "activeSceneGroupId": "快速体验沉浸式3d效果-mpjlrel8",
+    "activeSceneGroupId": "default-group",
     "finalSceneGroupId": "default-group",
     "sceneGroups": [
       {

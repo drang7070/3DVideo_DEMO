@@ -1691,8 +1691,8 @@ label strong {
   left: 20px;
   top: 232px;
   z-index: 8;
-  width: 264px;
-  max-height: min(62vh, 560px);
+  width: 211px;
+  max-height: min(40vh, 364px);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
@@ -1771,20 +1771,20 @@ label strong {
 
 .final-group-cards {
   display: grid;
-  gap: 30px;
-  padding: 16px 34px 20px 14px;
+  gap: 22px;
+  padding: 12px 26px 15px 10px;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
 }
 
 .final-group-card {
-  width: 134px;
-  min-height: 92px;
+  width: 101px;
+  min-height: 69px;
   display: grid;
-  grid-template-rows: 60px auto;
-  gap: 5px;
-  padding: 6px;
+  grid-template-rows: 45px auto;
+  gap: 4px;
+  padding: 5px;
   transform-origin: left center;
   transition:
     transform 180ms ease,
@@ -1814,7 +1814,7 @@ label strong {
   display: flex;
   align-items: center;
   min-width: 0;
-  min-height: 20px;
+  min-height: 15px;
   text-align: left;
 }
 
@@ -1825,7 +1825,8 @@ label strong {
 }
 
 .final-group-card-copy strong {
-  font-size: 13px;
+  font-size: 10px;
+  line-height: 1.2;
 }
 
 .final-input-row {
@@ -2149,7 +2150,7 @@ body.intro-embed-final .play-pause-button {
     top: auto;
     bottom: 206px;
     width: auto;
-    max-height: 190px;
+    max-height: 124px;
     transform: none;
   }
 
@@ -2164,11 +2165,11 @@ body.intro-embed-final .play-pause-button {
 
   .final-group-cards {
     grid-auto-flow: column;
-    grid-auto-columns: 134px;
-    gap: 26px;
+    grid-auto-columns: 101px;
+    gap: 20px;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 12px 28px 16px 14px;
+    padding: 9px 21px 12px 10px;
   }
 
   .final-group-card.active {
