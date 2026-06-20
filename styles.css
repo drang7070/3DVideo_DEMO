@@ -886,6 +886,28 @@ input[type="checkbox"] {
   color: var(--muted);
 }
 
+.scene-group-director-config {
+  display: grid;
+  gap: 6px;
+}
+
+.scene-group-director-config > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.scene-group-director-config textarea {
+  width: 100%;
+  min-height: 88px;
+  padding: 9px 10px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
 .scene-group-category {
   display: grid;
   gap: 6px;

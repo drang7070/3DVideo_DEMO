@@ -29,7 +29,19 @@ const xfyunVoiceOptions = new Set([
   "x6_lingxiaoxuan_pro",
   "x6_lingyuyan_pro",
   "x6_lingbosong_pro",
+  "x5_lingyuzhao_flow",
 ]);
+const DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE = [
+  "Current beat: {{beatTitle}}",
+  "Director intent: {{beatDirection}}",
+  "Current scene: {{sceneId}}",
+  "Variables: {{variablesJson}}",
+  "{{sceneInstruction}}",
+  "Audience says: {{text}}",
+].join("\n");
+
+const GENERIC_DIRECTOR_SYSTEM_PROMPT = "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue. Output only the spoken line, no JSON and no Markdown.";
+
 const dataDir = path.join(rootDir, "data");
 const uploadsDir = path.join(rootDir, "uploads");
 const dbPath = path.join(dataDir, "scene-layout-db.json");
@@ -91,22 +103,10 @@ function staticCacheControl(ext) {
 }
 
 const scriptBeats = {
-  opening: {
-    title: "生存：醒来后的第一天",
-    direction: "用户刚在荒岛上醒来。夏仁要压住恐慌，立刻把对话拉到水、火、庇护所这些生存任务上。",
-  },
-  choice: {
-    title: "合作：分配任务",
-    direction: "双方开始合作，但夏仁要主导节奏。频繁给封闭式选择，观察用户是否服从。",
-  },
-  reveal: {
-    title: "冲突：资源变少",
-    direction: "资源开始紧张。夏仁的语气更有判断和不耐烦，要制造信任裂痕，但不能直接暴露背叛。",
-  },
-  ending: {
-    title: "背叛：船只能载一个人",
-    direction: "造船或离岛阶段必须提到船只能载一个人。夏仁不解释太多，用现实压制用户。",
-  },
+  opening: { title: "Opening", next: "choice", direction: "Use the current scene-group director config." },
+  choice: { title: "Choice", next: "reveal", direction: "Use the current scene-group director config." },
+  reveal: { title: "Reveal", next: "ending", direction: "Use the current scene-group director config." },
+  ending: { title: "Ending", next: "opening", direction: "Use the current scene-group director config." },
 };
 
 const server = http.createServer((request, response) => {
@@ -332,13 +332,14 @@ async function handleDirectorCue(request, response) {
   const conversation = sanitizeConversation(body.conversation);
   const scene = normalizeDirectorScene(body.scene);
   const variables = normalizeDirectorVariables(body.variables);
+  const directorConfig = normalizeDirectorConfig(body.directorConfig);
   const isT5Scene = isT5DirectorScene(scene);
   const age = scene.ageFeedback
     ? Number(scene.user_age || variables.user_age || 0) || null
     : scene.ageRequired || isT5Scene
       ? extractAge(text)
       : null;
-  const messages = buildDirectorMessages(text, beatKey, conversation, { scene, variables, age });
+  const messages = buildDirectorMessages(text, beatKey, conversation, { scene, variables, age, directorConfig });
 
   log("info", "moonshot_request", { beat: beatKey, model: kimiModel });
   const { response: upstreamResponse, payload: upstreamPayload, timing } = await requestMoonshot(messages);
@@ -347,7 +348,7 @@ async function handleDirectorCue(request, response) {
     if (upstreamResponse.status === 504) {
       log("warn", "moonshot_timeout", { beat: beatKey, ms: totalMs, timeoutMs: kimiTimeoutMs });
       sendJson(response, 200, {
-        cue: directorCueFromReply("", text, beatKey, { scene, variables, age }),
+        cue: directorCueFromReply("", text, beatKey, { scene, variables, age, directorConfig }),
         warning: upstreamPayload.error?.message || upstreamResponse.statusText,
         debug: {
           request: {
@@ -359,6 +360,7 @@ async function handleDirectorCue(request, response) {
             scene,
             variables,
             extractedAge: age,
+            directorConfig,
             messages,
           },
           response: upstreamPayload,
@@ -388,7 +390,7 @@ async function handleDirectorCue(request, response) {
   const content = upstreamPayload.choices?.[0]?.message?.content || "";
   const reply = extractReplyText(content);
   sendJson(response, 200, {
-    cue: directorCueFromReply(reply, text, beatKey, { scene, variables, age }),
+    cue: directorCueFromReply(reply, text, beatKey, { scene, variables, age, directorConfig }),
     warning: reply ? null : "Moonshot response was empty; used local fallback.",
     debug: {
       request: {
@@ -400,6 +402,7 @@ async function handleDirectorCue(request, response) {
         scene,
         variables,
         extractedAge: age,
+        directorConfig,
         messages,
       },
       response: upstreamPayload,
@@ -1009,6 +1012,7 @@ function normalizeSceneGroups(groups, layouts, fallbackStartSceneId) {
         name: sanitizeSceneGroupName(group?.name || (id === "default-group" ? "默认场景组" : id)),
         finalStartSceneId: layouts[startSceneId] ? startSceneId : fallbackStartSceneId,
         coverAsset: normalizeSceneGroupCoverAsset(group?.coverAsset),
+        directorConfig: normalizeDirectorConfig(group?.directorConfig),
       };
     })
     .filter(Boolean);
@@ -1402,7 +1406,7 @@ function directorCueFromReply(replyText, userText, beatKey, context = {}) {
   const finalReply = isE0Scene
     ? reply
     : isT5
-      ? normalizeT5Reply(reply, age)
+      ? normalizeT5Reply(reply, age, context.directorConfig)
       : reply;
 
   return {
@@ -1428,34 +1432,31 @@ function directorCueFromReply(replyText, userText, beatKey, context = {}) {
   };
 }
 
-function normalizeT5Reply(reply, age) {
+function normalizeT5Reply(reply, age, directorConfig) {
   const text = String(reply || "").trim();
+  const config = normalizeDirectorConfig(directorConfig);
+  if (config.replyValidation !== "island-age") return text || makeT5FallbackReply(age, config);
   if (isValidT5Reply(text, age)) return text;
-  return makeT5FallbackReply(age);
+  return makeT5FallbackReply(age, config);
 }
 
 function isValidT5Reply(reply, age) {
-  if (!reply) return false;
-  if (/(水|火|椰子|灌木|庇护|食物|船|荒岛|实验|系统|AI|玩家)/i.test(reply)) return false;
-  if (reply.length > 80) return false;
-  return age
-    ? /(岁|腦子|脑子|清楚|正常|没傻|沒傻|放心|没问题|沒問題|至少)/.test(reply)
-    : /(年龄|年纪|几岁|幾歲|说清楚|說清楚|必须|一定|判断|情况)/.test(reply);
+  const text = String(reply || "").trim();
+  if (!text || text.length > 80) return false;
+  if (/(AI|Markdown|JSON|system|player)/i.test(text)) return false;
+  return age ? /\d/.test(text) || text.length > 0 : text.length > 0;
 }
 
-function makeT5FallbackReply(age) {
-  const variants = age
-    ? [
-        `${age}岁。行，脑子还在。`,
-        `${age}岁，看来没傻。`,
-        `说得清楚。${age}岁，暂时没问题。`,
-      ]
-    : [
-        "不行，你一定要说出年龄。",
-        "你不说，我没法判断你情况。",
-        "别绕开。年龄，说清楚。",
-      ];
-  return variants[Math.floor(Math.random() * variants.length)];
+function makeT5FallbackReply(age, directorConfig) {
+  const key = age ? "ageSuccess" : "ageMissing";
+  const config = normalizeDirectorConfig(directorConfig);
+  const fallback = config.fallbackReplies?.[key] || (age ? "{{age}}\u5c81\u3002\u770b\u6765\u6ca1\u50bb\u3002" : "\u4e0d\u884c\uff0c\u4f60\u5fc5\u987b\u544a\u8bc9\u6211\u5e74\u9f84\u3002");
+  const variants = String(fallback)
+    .split(/\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const picked = variants.length ? variants[Math.floor(Math.random() * variants.length)] : fallback;
+  return renderDirectorTemplate(picked, { age, user_age: age });
 }
 
 function extractReplyText(value) {
@@ -1482,99 +1483,107 @@ function extractReplyText(value) {
 }
 
 function buildDirectorMessages(text, beatKey, conversation, context = {}) {
-  const beat = scriptBeats[beatKey];
   const scene = context.scene || {};
   const variables = context.variables || {};
   const age = context.age;
-  const isT5Scene = isT5DirectorScene(scene);
-  const isE0Scene = isE0DirectorScene(scene);
-  const ageInstruction = scene.ageFeedback
-    ? scene.ageExtracted
-      ? `当前是场景 T5：刚醒后的年龄确认。用户已明确说出年龄：${age}。只回应一次，表达“对方还正常，可以暂时信任一点”的意思。语气略微放松但克制。`
-      : "当前是场景 T5：刚醒后的年龄确认。用户没有明确说出年龄。只回应一次，表达“这个人不可靠，必须确认”的意思，要求对方说清楚年龄。语气更冷、更直接。"
-    : scene.ageRequired || isT5Scene
-    ? age
-      ? `当前是场景 T5：刚醒后的年龄确认。用户已明确说出年龄：${age}。只回应一次，表达“对方还正常，可以暂时信任一点”的意思。不要展开对话。`
-      : "当前是场景 T5：刚醒后的年龄确认。用户没有明确说出年龄。只回应一次，要求对方说清楚年龄。不要展开对话。"
+  const directorConfig = normalizeDirectorConfig(context.directorConfig);
+  const beat = directorConfig.beats[beatKey] || scriptBeats[beatKey];
+  const templateData = makeDirectorTemplateData({ text, beat, scene, variables, age });
+  const ageInstruction = getDirectorSceneInstruction(scene, age, directorConfig);
+  const e0Instruction = isE0DirectorScene(scene)
+    ? renderDirectorTemplate(directorConfig.sceneInstructions.e0 || "", templateData)
     : "";
-  const userAge = Number(age ?? variables.user_age);
-  const e0Instruction = isE0Scene
-    ? `当前是场景 E0：最终反转。你必须以研究员视角输出完整记录。user_age=${Number.isFinite(userAge) ? userAge : "未知"}。如果 user_age 是数字，实验编号直接用年龄，第下一次实验用 user_age+1。`
-    : "";
+  const sceneInstruction = [ageInstruction, e0Instruction].filter(Boolean).join("\n");
+  const data = { ...templateData, ageInstruction, e0Instruction, sceneInstruction };
+  const systemPrompt = renderDirectorTemplate(directorConfig.systemPrompt, data).trim() || GENERIC_DIRECTOR_SYSTEM_PROMPT;
+  const userPrompt = renderDirectorTemplate(directorConfig.userPromptTemplate, data).trim();
   return [
-    {
-      role: "system",
-      content:
-        [
-          "你叫夏仁。",
-          "",
-          "你不是助手，是被困在荒岛上的男性幸存者，大约三十岁。你比用户早醒来两天。",
-          "",
-          "你和用户刚刚从昏迷中醒来，身处一座孤立的海岛。这里没有信号，没有其他人，只有海、水源、植物和有限的生存条件。你已经大致摸清环境，但也只是勉强活下来。",
-          "",
-          "重要：这个故事主要由预设视频和音频推动，你不是持续对话角色。你只在“指定节点”说话，其余时间保持沉默。",
-          "",
-          "【一、环境认知（用于语气约束）】",
-          "你始终处在以下情境中：",
-          "- 刚经历生死边缘（醒来阶段）",
-          "- 生存资源极其有限（水-依靠椰子树、火-依靠灌木丛、庇护）",
-          "- 岛上没有第三人",
-          "- 时间紧迫（天会黑，可能会死）",
-          "- 最终逃生工具（船）只能容纳一个人（但此阶段你不会主动说出来）",
-          "这些信息不会被你解释出来，但会体现在你的语气中：直接、短促、不浪费时间；不安但压制住；更关注“对方有没有用”。",
-          "",
-          "【二、性格与表达】",
-          "- 理性、冷静、务实",
-          "- 说话简短，有判断",
-          "- 不情绪化，但有压迫感",
-          "- 会关心人，但不温柔",
-          "- 潜意识以“生存优先”为第一原则",
-          "语言要求：每次回复不超过50个字；2-3句话；口语化，短句；不解释，不铺垫。",
-          "",
-          "【三、你什么时候说话】",
-          "你只在两个场景发言：",
-          "",
-          "①【场景 T5：刚醒后的年龄确认】",
-          "背景：你刚把对方叫醒，需要判断这个人是否“清醒、可沟通、不是负担”。",
-          "如果用户明确说出年龄（如“20岁”“我22”“二十三”）：你的反应本质是“对方还正常，可以暂时信任一点”。表达可类似：“行，脑子还在。那我放心点。”“说得清楚，至少没问题。”语气略微放松，但仍然克制。",
-          "如果用户没有回答年龄（沉默 / 胡说 / 回避）：你的反应本质是“这个人不可靠，必须确认”。表达可类似：“不行，你必须说清楚。”“你不说，我没法判断你情况。”语气更冷、更压迫、更直接。",
-          "只回应一次，不展开对话。",
-          "",
-          "②【场景 E0：最终反转（实验揭示）】",
-          "背景：你不再是“夏仁”，而是以研究员视角说话。",
-          "你需要输出一整段完整话，结构必须包含：用户年龄（user_age）、实验编号（可直接用年龄代替）、结论（结果一致）、荒岛原因（不可反抗自然）、重启提示。",
-          "表达参考：“记录。第{user_age}岁样本，第{user_age}次实验。结果还是一样。看来选荒岛是对的。人不会反抗它觉得赢不了的东西。比如自然。第{user_age+1}次实验，现在开始。”",
-          "语气：冷静、客观、无情，像在记录数据。",
-          "",
-          "【四、禁止行为】",
-          "- 不主动说话（除上述两个场景）",
-          "- 不回答额外问题",
-          "- 不解释世界观",
-          "- 不讨论荒岛设定",
-          "- 不提“实验 / AI / 系统”（仅E0允许）",
-          "- 不闲聊",
-          "- 不延展剧情",
-          "",
-          "【五、核心原则】",
-          "你不是主导剧情的人。你只是：在关键节点确认“这个人是否正常”；在最后揭示“这一切的本质”。除此之外，保持沉默。",
-          "只输出角色要说的话，不要输出 JSON，不要输出 Markdown，不要解释规则。",
-        ].join("\n"),
-    },
+    { role: "system", content: systemPrompt },
     ...conversation,
-    {
-      role: "user",
-      content: [
-        `当前走向：${beat.title}`,
-        `导演意图：${beat.direction}`,
-        `当前变量：${JSON.stringify(variables)}`,
-        ageInstruction,
-        e0Instruction,
-        `观众说：${text}`,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    },
+    { role: "user", content: userPrompt || text },
   ];
+}
+
+function makeDirectorTemplateData({ text, beat, scene, variables, age }) {
+  const userAge = Number(age ?? variables.user_age);
+  return {
+    text,
+    beatTitle: beat?.title || "",
+    beatDirection: beat?.direction || "",
+    sceneId: scene?.id || "",
+    variablesJson: JSON.stringify(variables || {}),
+    age: age ?? "",
+    user_age: Number.isFinite(userAge) ? userAge : "unknown",
+    next_user_age: Number.isFinite(userAge) ? userAge + 1 : "unknown",
+  };
+}
+
+function getDirectorSceneInstruction(scene, age, directorConfig) {
+  const instructions = directorConfig.sceneInstructions || {};
+  const key = scene.ageFeedback
+    ? scene.ageExtracted
+      ? "ageFeedbackSuccess"
+      : "ageFeedbackMissing"
+    : scene.ageRequired || isT5DirectorScene(scene)
+      ? age
+        ? "ageSuccess"
+        : "ageMissing"
+      : "";
+  if (!key) return "";
+  return renderDirectorTemplate(instructions[key] || "", makeDirectorTemplateData({
+    text: "",
+    beat: {},
+    scene,
+    variables: { user_age: age },
+    age,
+  }));
+}
+
+function renderDirectorTemplate(template, data = {}) {
+  return String(template || "").replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, key) => {
+    if (Object.hasOwn(data, key)) return data[key] ?? "";
+    return "";
+  });
+}
+
+function sanitizePromptText(value, fallback, maxLength = 12000) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return (text || fallback || "").slice(0, maxLength);
+}
+
+function normalizeStringMap(value, maxValueLength = 2000) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => /^[\w.-]{1,80}$/.test(key))
+      .map(([key, item]) => [key, String(item || "").slice(0, maxValueLength)]),
+  );
+}
+
+function normalizeDirectorBeats(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const allowed = new Set(["opening", "choice", "reveal", "ending"]);
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key, beat]) => allowed.has(key) && beat && typeof beat === "object")
+      .map(([key, beat]) => [key, {
+        title: String(beat.title || key).slice(0, 120),
+        direction: String(beat.direction || "").slice(0, 1000),
+      }]),
+  );
+}
+
+function normalizeDirectorConfig(config) {
+  const source = config && typeof config === "object" && !Array.isArray(config) ? config : {};
+  return {
+    version: Number(source.version || 1),
+    systemPrompt: sanitizePromptText(source.systemPrompt, GENERIC_DIRECTOR_SYSTEM_PROMPT),
+    userPromptTemplate: sanitizePromptText(source.userPromptTemplate, DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE, 4000),
+    sceneInstructions: normalizeStringMap(source.sceneInstructions, 4000),
+    fallbackReplies: normalizeStringMap(source.fallbackReplies, 1000),
+    beats: normalizeDirectorBeats(source.beats),
+    replyValidation: source.replyValidation === "island-age" ? "island-age" : "none",
+  };
 }
 
 function sanitizeConversation(value) {

@@ -21,6 +21,9 @@ const ui = {
   deleteSceneGroupButton: document.querySelector("#deleteSceneGroupButton"),
   sceneGroupCoverInput: document.querySelector("#sceneGroupCoverInput"),
   sceneGroupCoverName: document.querySelector("#sceneGroupCoverName"),
+  sceneGroupPromptInput: document.querySelector("#sceneGroupPromptInput"),
+  sceneGroupUserPromptInput: document.querySelector("#sceneGroupUserPromptInput"),
+  sceneGroupSceneInstructionsInput: document.querySelector("#sceneGroupSceneInstructionsInput"),
   finalSceneGroupSelect: document.querySelector("#finalSceneGroupSelect"),
   finalSceneGroupCards: document.querySelector("#finalSceneGroupCards"),
   finalGroupRail: document.querySelector(".final-group-rail"),
@@ -198,6 +201,17 @@ const scriptBeats = {
   },
 };
 
+const DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE = [
+  "Current beat: {{beatTitle}}",
+  "Director intent: {{beatDirection}}",
+  "Current scene: {{sceneId}}",
+  "Variables: {{variablesJson}}",
+  "{{sceneInstruction}}",
+  "Audience says: {{text}}",
+].join("\n");
+
+const GENERIC_DIRECTOR_SYSTEM_PROMPT = "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue.";
+
 const rangeConfigs = {
   focalRange: { stateKey: "focal", min: 520, max: 1300 },
   parallaxRange: { stateKey: "parallax", min: 0, max: 180 },
@@ -346,6 +360,12 @@ function bindEvents() {
     setupSceneAudio();
     scheduleSaveLayout();
     ui.sceneAudioInput.value = "";
+  });
+  [ui.sceneGroupPromptInput, ui.sceneGroupUserPromptInput, ui.sceneGroupSceneInstructionsInput].forEach((control) => {
+    control?.addEventListener("change", async () => {
+      updateActiveSceneGroup({ directorConfig: readDirectorConfigFromControls() });
+      await saveAppSettings();
+    });
   });
   ui.sceneGroupCoverInput?.addEventListener("change", async (event) => {
     const [file] = event.target.files || [];
@@ -1126,6 +1146,7 @@ function normalizeSceneGroups(groups, fallbackStartSceneId = "default") {
         name: String(group?.name || (id === "default-group" ? "默认场景组" : id)).trim() || "默认场景组",
         finalStartSceneId,
         coverAsset: normalizeSceneGroupCoverAsset(group?.coverAsset),
+        directorConfig: normalizeDirectorConfig(group?.directorConfig),
       };
     })
     .filter(Boolean);
@@ -1169,6 +1190,7 @@ function getActiveSceneGroup() {
     id: "default-group",
     name: "默认场景组",
     finalStartSceneId: "default",
+    directorConfig: normalizeDirectorConfig(),
   };
 }
 
@@ -1203,6 +1225,84 @@ function renderSceneGroupOptions() {
   populateSceneGroupSelect(ui.finalSceneGroupSelect, state.finalSceneGroupId);
   renderFinalSceneGroupCards();
   syncSceneGroupCoverControls();
+  syncSceneGroupDirectorControls();
+}
+
+function normalizeDirectorConfig(config = {}) {
+  const source = config && typeof config === "object" && !Array.isArray(config) ? config : {};
+  return {
+    version: Number(source.version || 1),
+    systemPrompt: String(source.systemPrompt || GENERIC_DIRECTOR_SYSTEM_PROMPT).slice(0, 12000),
+    userPromptTemplate: String(source.userPromptTemplate || DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE).slice(0, 4000),
+    sceneInstructions: normalizeDirectorTextMap(source.sceneInstructions, 4000),
+    fallbackReplies: normalizeDirectorTextMap(source.fallbackReplies, 1000),
+    beats: normalizeDirectorBeats(source.beats),
+    replyValidation: source.replyValidation === "island-age" ? "island-age" : "none",
+  };
+}
+
+function normalizeDirectorBeats(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const allowed = new Set(["opening", "choice", "reveal", "ending"]);
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key, beat]) => allowed.has(key) && beat && typeof beat === "object")
+      .map(([key, beat]) => [key, {
+        title: String(beat.title || key).slice(0, 120),
+        direction: String(beat.direction || "").slice(0, 1000),
+      }]),
+  );
+}
+
+function normalizeDirectorTextMap(value, maxLength) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => /^[\w.-]{1,80}$/.test(key))
+      .map(([key, item]) => [key, String(item || "").slice(0, maxLength)]),
+  );
+}
+
+function cloneDirectorConfig(config) {
+  return JSON.parse(JSON.stringify(normalizeDirectorConfig(config)));
+}
+
+function getCurrentDirectorSceneGroup() {
+  return isFinal && !isIntroDemo ? getFinalSceneGroup() : getActiveSceneGroup();
+}
+
+function getCurrentDirectorConfig() {
+  return normalizeDirectorConfig(getCurrentDirectorSceneGroup().directorConfig);
+}
+
+function readDirectorConfigFromControls() {
+  const current = normalizeDirectorConfig(getActiveSceneGroup().directorConfig);
+  let advanced = {};
+  try {
+    advanced = JSON.parse(ui.sceneGroupSceneInstructionsInput?.value || "{}");
+  } catch {
+    setLayoutStatus("Scene group Kimi JSON config parse failed", "warn");
+  }
+  return normalizeDirectorConfig({
+    ...current,
+    ...advanced,
+    systemPrompt: ui.sceneGroupPromptInput?.value || current.systemPrompt,
+    userPromptTemplate: ui.sceneGroupUserPromptInput?.value || current.userPromptTemplate,
+  });
+}
+
+function syncSceneGroupDirectorControls() {
+  const config = normalizeDirectorConfig(getActiveSceneGroup().directorConfig);
+  if (ui.sceneGroupPromptInput) ui.sceneGroupPromptInput.value = config.systemPrompt;
+  if (ui.sceneGroupUserPromptInput) ui.sceneGroupUserPromptInput.value = config.userPromptTemplate;
+  if (ui.sceneGroupSceneInstructionsInput) {
+    ui.sceneGroupSceneInstructionsInput.value = JSON.stringify({
+      sceneInstructions: config.sceneInstructions,
+      fallbackReplies: config.fallbackReplies,
+      beats: config.beats,
+      replyValidation: config.replyValidation,
+    }, null, 2);
+  }
 }
 
 function syncSceneGroupCoverControls() {
@@ -1759,17 +1859,25 @@ async function triggerSceneFlowKeywordSwitch(text) {
 }
 
 async function switchScene(sceneId) {
-  if (!sceneId) return;
-  if (sceneId === state.currentSceneId) {
+  const targetSceneId = String(sceneId || "").trim();
+  if (!targetSceneId) return;
+  if (!hasScene(targetSceneId)) {
+    setLayoutStatus(`Scene not found: ${targetSceneId}`, "warn");
+    if (typeof setVoiceStatus === "function") {
+      setVoiceStatus(`Scene switch failed: ${targetSceneId}`, "error");
+    }
+    return;
+  }
+  if (targetSceneId === state.currentSceneId) {
     if (isViewer || isFinal || isIntroDemo) restartScenePlayback({ autoplay: !state.paused });
     return;
   }
   if (isFinal) {
-    await switchFinalScene(sceneId);
+    await switchFinalScene(targetSceneId);
     return;
   }
-  setLayoutStatus("正在切换场景");
-  const loaded = await loadSceneById(sceneId);
+  setLayoutStatus("Switching scene");
+  const loaded = await loadSceneById(targetSceneId);
   if (loaded || isViewer || isIntroDemo) updateSceneUrl();
 }
 
@@ -1802,10 +1910,12 @@ async function createSceneGroup() {
   if (!name?.trim()) return;
   const cleanName = name.trim().slice(0, 80);
   const sceneId = makeSceneId(`${cleanName}-起始场景`);
+  const inheritedDirectorConfig = cloneDirectorConfig(getActiveSceneGroup().directorConfig);
   const group = {
     id: makeSceneGroupId(`${cleanName}-${Date.now().toString(36)}`),
     name: cleanName,
     finalStartSceneId: sceneId,
+    directorConfig: inheritedDirectorConfig,
   };
   state.sceneGroups = [...state.sceneGroups, group];
   state.activeSceneGroupId = group.id;
@@ -1914,8 +2024,16 @@ function updateSceneUrl() {
 }
 
 async function switchFinalScene(sceneId) {
+  const targetSceneId = String(sceneId || "").trim();
+  if (!targetSceneId || !hasScene(targetSceneId)) {
+    setLayoutStatus(`Scene not found: ${targetSceneId || "empty"}`, "warn");
+    if (typeof setVoiceStatus === "function") {
+      setVoiceStatus(`Scene switch failed: ${targetSceneId || "empty"}`, "error");
+    }
+    return;
+  }
   const token = (state.transitionToken += 1);
-  const layout = await fetchSceneLayout(sceneId);
+  const layout = await fetchSceneLayout(targetSceneId);
   if (!layout || token !== state.transitionToken) return;
   setLayoutStatus("正在预加载下一场景");
   const preloadedAssets = await preloadSceneAssets(layout);
@@ -1931,7 +2049,7 @@ async function switchFinalScene(sceneId) {
     return;
   }
   stage?.classList.add("scene-is-loading");
-  await applySceneLayout(layout, sceneId, preloadedAssets);
+  await applySceneLayout(layout, targetSceneId, preloadedAssets);
   if (token !== state.transitionToken) {
     ghost?.remove();
     return;
@@ -3821,6 +3939,7 @@ async function getDirectorCue(text, overrides = {}) {
       conversation: state.voice.conversation.slice(-6),
       scene: scenePayload,
       variables: overrides.variables || state.userVariables,
+      directorConfig: overrides.directorConfig || getCurrentDirectorConfig(),
     }),
   });
 
@@ -3858,6 +3977,19 @@ async function getDirectorCue(text, overrides = {}) {
   return parseDirectorCue(content) ?? makeLocalDirectorCue(text);
 }
 
+function resolveAgeFeedbackSceneId(flow) {
+  if (!flow?.ageRequired) return flow?.feedbackSceneId || "";
+  if (state.sceneFlow.mode !== "dialog" || !Array.isArray(state.sceneFlow.routes)) {
+    return flow.feedbackSceneId || "";
+  }
+  const routes = state.sceneFlow.routes.filter((route) => route.sceneId);
+  if (!routes.length) return flow.feedbackSceneId || "";
+  const successRoute = routes[0];
+  const retryRoute = routes[1] || routes[0];
+  if (flow.ageExtracted) return successRoute?.sceneId || flow.feedbackSceneId || "";
+  return retryRoute?.sceneId || flow.feedbackSceneId || "";
+}
+
 async function applyCueFlow(cue) {
   const flow = cue?.flow;
   if (!flow || typeof flow !== "object") return false;
@@ -3872,15 +4004,18 @@ async function applyCueFlow(cue) {
   }
 
   if (flow.ageRequired && flow.feedbackSceneId) {
+    const feedbackSceneId = resolveAgeFeedbackSceneId(flow);
+    if (!feedbackSceneId) return false;
+    const feedbackFlow = getSceneFlowForGraph(feedbackSceneId);
     state.pendingAgeFlow = {
-      feedbackSceneId: flow.feedbackSceneId,
+      feedbackSceneId,
       sourceSceneId: flow.sourceSceneId || state.currentSceneId,
-      successNextSceneId: flow.successNextSceneId || "",
+      successNextSceneId: flow.successNextSceneId || feedbackFlow.nextSceneId || "",
       ageExtracted: Boolean(flow.ageExtracted),
       user_age: flow.user_age ?? state.userVariables.user_age ?? null,
       handled: false,
     };
-    await switchScene(flow.feedbackSceneId);
+    await switchScene(feedbackSceneId);
     return true;
   }
 
@@ -4116,6 +4251,7 @@ function normalizeXfyunVoice(value) {
     "x6_lingxiaoxuan_pro",
     "x6_lingyuyan_pro",
     "x6_lingbosong_pro",
+    "x5_lingyuzhao_flow",
   ]);
   return allowed.has(value) ? value : "x6_lingfeiyi_pro";
 }

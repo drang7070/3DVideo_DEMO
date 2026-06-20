@@ -10,6 +10,7 @@ const voiceOptions = new Set([
   "x6_lingxiaoxuan_pro",
   "x6_lingyuyan_pro",
   "x6_lingbosong_pro",
+  "x5_lingyuzhao_flow",
 ]);
 
 main().catch((error) => {
