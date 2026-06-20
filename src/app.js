@@ -2,12 +2,20 @@ const canvas = document.querySelector("#stage");
 const ctx = canvas.getContext("2d", { alpha: false });
 const urlParams = new URLSearchParams(window.location.search);
 const appMode = document.body.dataset.mode || "editor";
-const isEditor = appMode === "editor";
+const isEditor = appMode === "editor" || appMode === "conver-editor";
+const isConversationalEditor = appMode === "conver-editor";
 const isViewer = appMode === "viewer";
 const isFinal = appMode === "final";
+const editorDataSpace = isConversationalEditor ? "conver" : "index";
+const referenceDataSpace = isEditor ? (isConversationalEditor ? "index" : "conver") : "";
 const isIntroDemo = appMode === "intro-demo";
 const isIntroEmbed = (isFinal && urlParams.get("intro") === "1") || isIntroDemo;
 const introEmbedProjectionScale = 0.62;
+
+function dataSpaceUrl(path, space = editorDataSpace) {
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}space=${encodeURIComponent(space)}`;
+}
 
 const ui = {
   fileInput: document.querySelector("#fileInput"),
@@ -124,6 +132,7 @@ const state = {
   currentSceneId: urlParams.get("scene") || "default",
   currentSceneName: "默认场景",
   sceneGroups: [],
+  referenceSceneGroups: [],
   finalGroupPreviewCache: new Map(),
   finalGroupRailTimer: null,
   activeSceneGroupId: urlParams.get("group") || "default-group",
@@ -761,6 +770,17 @@ function hydrateVideoItem(asset, item) {
 }
 
 function placeNewItem(item, index) {
+  if (isConversationalEditor) {
+    Object.assign(item, {
+      x: rangeToValue("xRange", 50),
+      y: rangeToValue("yRange", 50),
+      z: rangeToValue("zRange", 50),
+      scale: rangeToValue("scaleRange", 50),
+      rotation: rangeToValue("rotationRange", 50),
+      tilt: rangeToValue("tiltRange", 50),
+    });
+    return;
+  }
   const angle = index * 1.17;
   Object.assign(item, {
     x: Math.cos(angle) * 190,
@@ -1013,7 +1033,7 @@ async function loadSceneById(sceneId) {
 }
 
 async function fetchSceneLayout(sceneId) {
-  const response = await fetch(`/api/layout?id=${encodeURIComponent(sceneId)}`);
+  const response = await fetch(dataSpaceUrl(`/api/layout?id=${encodeURIComponent(sceneId)}`));
   if (!response.ok) return null;
   return response.json();
 }
@@ -1065,7 +1085,7 @@ async function applySceneLayout(layout, sceneId, preloadedAssets = new Map()) {
 
 async function loadSceneList() {
   if (!ui.sceneSelect) return;
-  const response = await fetch("/api/layout?list=1&details=1");
+  const response = await fetch(dataSpaceUrl("/api/layout?list=1&details=1"));
   if (!response.ok) return;
   const payload = await response.json();
   state.scenes = Array.isArray(payload.scenes) ? payload.scenes : [];
@@ -1081,7 +1101,7 @@ async function loadSceneList() {
 
 async function loadAppSettings() {
   try {
-    const response = await fetch("/api/settings");
+    const response = await fetch(dataSpaceUrl("/api/settings"));
     if (!response.ok) return;
     const payload = await response.json();
     const settings = normalizeAppSettings(payload.settings);
@@ -1099,14 +1119,47 @@ async function loadAppSettings() {
       }
     }
     state.finalStartSceneId = isFinal ? getFinalSceneGroup().finalStartSceneId : getActiveSceneGroup().finalStartSceneId;
+    await loadReferenceSceneGroups();
     renderSceneGroupOptions();
     renderFinalStartSceneOptions();
   } catch {}
 }
 
+
+async function loadReferenceSceneGroups() {
+  state.referenceSceneGroups = [];
+  if (!referenceDataSpace) return;
+  try {
+    const [settingsResponse, scenesResponse] = await Promise.all([
+      fetch(dataSpaceUrl("/api/settings", referenceDataSpace)),
+      fetch(dataSpaceUrl("/api/layout?list=1&details=1", referenceDataSpace)),
+    ]);
+    if (!settingsResponse.ok || !scenesResponse.ok) return;
+    const settingsPayload = await settingsResponse.json();
+    const scenesPayload = await scenesResponse.json();
+    const sceneNameById = new Map(
+      (Array.isArray(scenesPayload.scenes) ? scenesPayload.scenes : []).map((scene) => [scene.id, scene.name || scene.id]),
+    );
+    const sourceLabel = referenceDataSpace === "conver" ? "index_conver" : "index";
+    const groups = Array.isArray(settingsPayload.settings?.sceneGroups) ? settingsPayload.settings.sceneGroups : [];
+    state.referenceSceneGroups = groups.map((group) => {
+      const sceneId = group.finalStartSceneId || "default";
+      return {
+        id: `${referenceDataSpace}:${group.id}`,
+        originalId: group.id,
+        name: group.name || group.id,
+        finalStartSceneId: sceneId,
+        sceneName: sceneNameById.get(sceneId) || sceneId,
+        sourceLabel,
+      };
+    });
+  } catch {
+    state.referenceSceneGroups = [];
+  }
+}
 async function saveAppSettings() {
   try {
-    const response = await fetch("/api/settings", {
+    const response = await fetch(dataSpaceUrl("/api/settings"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(serializeAppSettings()),
@@ -1327,6 +1380,18 @@ function populateSceneGroupSelect(select, selected = "") {
     option.textContent = group.name;
     fragment.append(option);
   });
+  if (state.referenceSceneGroups.length) {
+    const referenceGroup = document.createElement("optgroup");
+    referenceGroup.label = "Read-only reference";
+    state.referenceSceneGroups.forEach((group) => {
+      const option = document.createElement("option");
+      option.value = group.id;
+      option.disabled = true;
+      option.textContent = `${group.sourceLabel} | ${group.name} / ${group.sceneName}`;
+      referenceGroup.append(option);
+    });
+    fragment.append(referenceGroup);
+  }
   select.replaceChildren(fragment);
   select.value = hasSceneGroup(selected) ? selected : state.sceneGroups[0]?.id || "";
 }
@@ -2011,7 +2076,7 @@ function getDeletableSceneIdsForGroup(groupId) {
 }
 
 async function deleteSceneLayout(sceneId) {
-  const response = await fetch(`/api/layout?id=${encodeURIComponent(sceneId)}`, { method: "DELETE" });
+  const response = await fetch(dataSpaceUrl(`/api/layout?id=${encodeURIComponent(sceneId)}`), { method: "DELETE" });
   if (!response.ok) throw new Error(`delete scene failed: ${sceneId}`);
 }
 
@@ -2417,7 +2482,7 @@ async function saveLayoutNow() {
   if (!isEditor) return;
   try {
     const payload = serializeLayout();
-    const response = await fetch("/api/layout", {
+    const response = await fetch(dataSpaceUrl("/api/layout"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

@@ -213,13 +213,14 @@ process.on("SIGTERM", () => {
 });
 
 async function handleLayout(request, response, url) {
+  const space = sanitizeDataSpace(url.searchParams.get("space"));
   if (request.method === "GET") {
     if (url.searchParams.get("list") === "1") {
-      sendJson(response, 200, { scenes: await listLayoutScenes(url.searchParams.get("details") === "1") });
+      sendJson(response, 200, { scenes: await listLayoutScenes(url.searchParams.get("details") === "1", space) });
       return;
     }
     const id = sanitizeSceneId(url.searchParams.get("id") || "default");
-    const payload = await readLayoutPayload(id);
+    const payload = await readLayoutPayload(id, space);
     sendJson(response, 200, payload || { id, name: id === "default" ? "默认场景" : id, items: [], scene: {} });
     return;
   }
@@ -228,7 +229,7 @@ async function handleLayout(request, response, url) {
     const body = await readJsonBody(request, 4 * 1024 * 1024);
     const id = sanitizeSceneId(body.id || url.searchParams.get("id") || "default");
     const name = id === "default" ? "默认场景" : sanitizeSceneName(body.name || body.sceneName || id);
-    await writeLayoutPayload(id, name, body);
+    await writeLayoutPayload(id, name, body, space);
     sendJson(response, 200, { ok: true, id, name, savedAt: new Date().toISOString() });
     return;
   }
@@ -239,7 +240,7 @@ async function handleLayout(request, response, url) {
       sendJson(response, 400, { error: "invalid_scene_id" });
       return;
     }
-    const deleted = await deleteLayoutPayload(id);
+    const deleted = await deleteLayoutPayload(id, space);
     sendJson(response, 200, { ok: true, id, deleted });
     return;
   }
@@ -248,8 +249,10 @@ async function handleLayout(request, response, url) {
 }
 
 async function handleSettings(request, response) {
+  const url = new URL(request.url, `http://${request.headers.host}`);
+  const space = sanitizeDataSpace(url.searchParams.get("space"));
   if (request.method === "GET") {
-    sendJson(response, 200, { settings: await readSettings() });
+    sendJson(response, 200, { settings: await readSettings(space) });
     return;
   }
 
@@ -260,7 +263,7 @@ async function handleSettings(request, response) {
     if (Object.hasOwn(body, "activeSceneGroupId")) nextSettings.activeSceneGroupId = sanitizeSceneGroupId(body.activeSceneGroupId);
     if (Object.hasOwn(body, "finalSceneGroupId")) nextSettings.finalSceneGroupId = sanitizeSceneGroupId(body.finalSceneGroupId);
     if (Array.isArray(body.sceneGroups)) nextSettings.sceneGroups = body.sceneGroups;
-    const settings = await writeSettings(nextSettings);
+    const settings = await writeSettings(nextSettings, space);
     sendJson(response, 200, { ok: true, settings });
     return;
   }
@@ -922,9 +925,10 @@ async function persistDatabase() {
   log("info", "db_persisted", { scenes: Object.keys(dbCache.layouts || {}).length });
 }
 
-async function listLayoutScenes(includeDetails = false) {
+async function listLayoutScenes(includeDetails = false, space = "index") {
   const db = await readDatabase();
-  return Object.entries(db.layouts || {})
+  const layouts = getLayoutsForSpace(db, space);
+  return Object.entries(layouts || {})
     .map(([id, entry]) => ({
       id,
       name: id === "default" ? "默认场景" : entry.name || id,
@@ -934,9 +938,10 @@ async function listLayoutScenes(includeDetails = false) {
     .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
 }
 
-async function readLayoutPayload(id = "default") {
+async function readLayoutPayload(id = "default", space = "index") {
   const db = await readDatabase();
-  const entry = db.layouts?.[id];
+  const layouts = getLayoutsForSpace(db, space);
+  const entry = layouts?.[id];
   const raw = entry?.payload;
   if (!raw) return null;
   try {
@@ -946,10 +951,10 @@ async function readLayoutPayload(id = "default") {
   }
 }
 
-async function writeLayoutPayload(id, name, payload) {
+async function writeLayoutPayload(id, name, payload, space = "index") {
   const db = await readDatabase();
-  db.layouts = db.layouts || {};
-  db.layouts[id] = {
+  const layouts = getLayoutsForSpace(db, space);
+  layouts[id] = {
     name,
     payload: { ...payload, id, name },
     updatedAt: new Date().toISOString(),
@@ -957,26 +962,72 @@ async function writeLayoutPayload(id, name, payload) {
   schedulePersist();
 }
 
-async function deleteLayoutPayload(id) {
+async function deleteLayoutPayload(id, space = "index") {
   const db = await readDatabase();
-  if (!db.layouts?.[id]) return false;
-  delete db.layouts[id];
+  const layouts = getLayoutsForSpace(db, space);
+  if (!layouts?.[id]) return false;
+  delete layouts[id];
   schedulePersist();
   return true;
 }
 
-async function readSettings() {
+async function readSettings(space = "index") {
   const db = await readDatabase();
-  return normalizeSettings(db.settings, db.layouts);
+  const store = getSettingsStoreForSpace(db, space);
+  const layouts = getLayoutsForSpace(db, space);
+  return normalizeSettings(store.value, layouts);
 }
 
-async function writeSettings(nextSettings) {
+async function writeSettings(nextSettings, space = "index") {
   const db = await readDatabase();
-  db.settings = normalizeSettings({ ...db.settings, ...nextSettings }, db.layouts);
+  const store = getSettingsStoreForSpace(db, space);
+  const layouts = getLayoutsForSpace(db, space);
+  store.value = normalizeSettings({ ...store.value, ...nextSettings }, layouts);
   schedulePersist();
-  return db.settings;
+  return store.value;
 }
 
+
+function sanitizeDataSpace(value) {
+  return value === "conver" ? "conver" : "index";
+}
+
+function getLayoutsForSpace(db, space = "index") {
+  if (sanitizeDataSpace(space) === "index") {
+    db.layouts = db.layouts || {};
+    ensureDefaultLayout(db.layouts);
+    return db.layouts;
+  }
+  db.editorSpaces = db.editorSpaces || {};
+  db.editorSpaces.conver = db.editorSpaces.conver || {};
+  db.editorSpaces.conver.layouts = db.editorSpaces.conver.layouts || {};
+  ensureDefaultLayout(db.editorSpaces.conver.layouts);
+  return db.editorSpaces.conver.layouts;
+}
+
+function getSettingsStoreForSpace(db, space = "index") {
+  if (sanitizeDataSpace(space) === "index") {
+    return {
+      get value() { return db.settings; },
+      set value(next) { db.settings = next; },
+    };
+  }
+  db.editorSpaces = db.editorSpaces || {};
+  db.editorSpaces.conver = db.editorSpaces.conver || {};
+  return {
+    get value() { return db.editorSpaces.conver.settings; },
+    set value(next) { db.editorSpaces.conver.settings = next; },
+  };
+}
+
+function ensureDefaultLayout(layouts) {
+  if (layouts.default) return;
+  layouts.default = {
+    name: "默认场景",
+    payload: { id: "default", name: "默认场景", scene: {}, items: [] },
+    updatedAt: new Date().toISOString(),
+  };
+}
 function normalizeSettings(settings = {}, layouts = {}) {
   const finalStartSceneId = layouts[sanitizeSceneId(settings.finalStartSceneId || "default")]
     ? sanitizeSceneId(settings.finalStartSceneId || "default")

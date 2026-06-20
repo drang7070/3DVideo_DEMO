@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>三维剧场编辑器</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-mode="conver-editor">
+    <div id="app" class="editor-app">
+      <header class="app-tabs" aria-label="功能标签页">
+        <button class="tab-button active" type="button" data-tab-target="stageTab">3D 视频编辑</button>
+        <button class="tab-button" type="button" data-tab-target="voiceTab">语音对话验证</button>
+      </header>
+
+      <section id="stageTab" class="tab-page active" aria-label="3D 视频编辑">
+        <div class="editor-grid">
+          <aside class="panel panel-left" aria-label="场景工具">
+            <div class="brand">
+              <span class="brand-mark"></span>
+              <div>
+                <h1>三维剧场</h1>
+                <p>Canvas 透视空间</p>
+              </div>
+            </div>
+
+            <div class="tool-group">
+              <label class="file-button">
+                <input
+                  id="fileInput"
+                  type="file"
+                  accept="image/png,image/gif,video/quicktime,video/webm,.mov,.webm"
+                  multiple
+                />
+                <span>导入 PNG / GIF / MOV / WebM</span>
+              </label>
+              <button id="cameraButton" type="button">开启摄像头跟随</button>
+              <button id="autoLayoutButton" type="button">自动三维布局</button>
+
+              <div class="scene-tools">
+                <label>
+                  <span>场景组</span>
+                  <select id="sceneGroupSelect">
+                    <option value="default-group">默认场景组</option>
+                  </select>
+                </label>
+                <button id="newSceneGroupButton" type="button">新建场景组</button>
+                <button id="renameSceneGroupButton" type="button">重命名场景组</button>
+                <button id="deleteSceneGroupButton" type="button">删除场景组</button>
+                <label class="file-button scene-group-cover-button">
+                  <input id="sceneGroupCoverInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif" />
+                  <span>上传场景组封面</span>
+                </label>
+                <span id="sceneGroupCoverName" class="scene-audio-name empty">未设置封面</span>
+                <label class="scene-group-director-config">
+                  <span>Scene Group Kimi System Prompt</span>
+                  <textarea id="sceneGroupPromptInput" rows="8" spellcheck="false" placeholder="Role, persona, world, rules for this scene group"></textarea>
+                </label>
+                <label class="scene-group-director-config">
+                  <span>Kimi User Message Template</span>
+                  <textarea id="sceneGroupUserPromptInput" rows="5" spellcheck="false" placeholder="Available: {{text}}, {{beatTitle}}, {{beatDirection}}, {{sceneInstruction}}, {{variablesJson}}"></textarea>
+                </label>
+                <label class="scene-group-director-config">
+                  <span>Scene Instruction JSON</span>
+                  <textarea id="sceneGroupSceneInstructionsInput" rows="7" spellcheck="false" placeholder="Configure sceneInstructions, fallbackReplies, replyValidation"></textarea>
+                </label>
+                <label>
+                  <span>Final 演示场景组</span>
+                  <select id="finalSceneGroupSelect">
+                    <option value="default-group">默认场景组</option>
+                  </select>
+                </label>
+                <label>
+                  <span>当前场景</span>
+                  <select id="sceneSelect">
+                    <option value="default">默认场景</option>
+                  </select>
+                </label>
+                <div class="scene-group-category" aria-label="当前场景组分类">
+                  <span>组内场景</span>
+                  <div id="sceneGroupSceneList" class="scene-group-scene-list"></div>
+                </div>
+                <input id="sceneNameInput" type="text" value="默认场景" aria-label="场景名称" />
+                <label>
+                  <span>当前组首个场景</span>
+                  <select id="finalStartSceneSelect">
+                    <option value="default">默认场景</option>
+                  </select>
+                </label>
+                <label>
+                  <span>讯飞发音人</span>
+                  <select id="xfyunVoiceSelect" aria-label="选择当前场景的讯飞发音人">
+                    <option value="x6_lingfeiyi_pro">聆飞逸 x6_lingfeiyi_pro</option>
+                    <option value="x6_lingxiaoxuan_pro">聆小璇 x6_lingxiaoxuan_pro</option>
+                    <option value="x6_lingyuyan_pro">聆玉言 x6_lingyuyan_pro</option>
+                    <option value="x6_lingbosong_pro">聆伯松 x6_lingbosong_pro</option>
+                    <option value="x5_lingyuzhao_flow">聆玉昭 x5_lingyuzhao_flow</option>
+                  </select>
+                </label>
+                <button id="saveLayoutButton" type="button">保存布局</button>
+                <button id="saveAsLayoutButton" type="button">另存为布局</button>
+                <label class="file-button scene-audio-button">
+                  <input
+                    id="sceneAudioInput"
+                    type="file"
+                    accept="audio/mpeg,audio/wav,audio/ogg,audio/mp4,audio/aac,.mp3,.wav,.ogg,.m4a,.aac"
+                  />
+                  <span>上传场景音频</span>
+                </label>
+                <span id="sceneAudioName" class="scene-audio-name empty">未设置音频</span>
+                <label class="switch-row">
+                  <span>GIF 循环播放</span>
+                  <input id="gifLoopToggle" type="checkbox" checked />
+                </label>
+                <label class="switch-row">
+                  <span>音频循环播放</span>
+                  <input id="audioLoopToggle" type="checkbox" checked />
+                </label>
+                <label class="switch-row">
+                  <span>WebM 循环播放</span>
+                  <input id="webmLoopToggle" type="checkbox" checked />
+                </label>
+                <label class="switch-row">
+                  <span>需要获取年龄</span>
+                  <input id="ageRequiredToggle" type="checkbox" />
+                </label>
+                <label class="switch-row">
+                  <span>调用实时回复</span>
+                  <input id="realtimeReplyToggle" type="checkbox" />
+                </label>
+                <label>
+                  <span>场景结束后</span>
+                  <select id="sceneEndMode">
+                    <option value="none">不自动跳转</option>
+                    <option value="auto">直接进入下一场景</option>
+                    <option value="dialog">等待对话关键词</option>
+                  </select>
+                </label>
+                <label data-flow-visible="auto" hidden>
+                  <span>下一场景</span>
+                  <select id="sceneNextSceneSelect">
+                    <option value="">不指定</option>
+                  </select>
+                </label>
+                <div class="scene-flow-routes" data-flow-visible="dialog" hidden>
+                  <span class="scene-flow-title">关键词跳转</span>
+                  <div class="scene-flow-route" data-flow-route>
+                    <input data-flow-keywords type="text" placeholder="关键词，如：火、点燃" />
+                    <select data-flow-scene><option value="">不指定</option></select>
+                  </div>
+                  <div class="scene-flow-route" data-flow-route>
+                    <input data-flow-keywords type="text" placeholder="关键词，如：水、喝" />
+                    <select data-flow-scene><option value="">不指定</option></select>
+                  </div>
+                  <div class="scene-flow-route" data-flow-route>
+                    <input data-flow-keywords type="text" placeholder="关键词" />
+                    <select data-flow-scene><option value="">不指定</option></select>
+                  </div>
+                  <div class="scene-flow-route" data-flow-route>
+                    <input data-flow-keywords type="text" placeholder="关键词" />
+                    <select data-flow-scene><option value="">不指定</option></select>
+                  </div>
+                </div>
+              </div>
+
+              <a class="demo-link" href="./viewer.html" target="_blank" rel="noreferrer">打开演示页</a>
+              <button id="exportButton" type="button">导出当前画面</button>
+              <span id="layoutStatus">布局尚未保存</span>
+            </div>
+
+            <div class="tool-group compact">
+              <label>
+                <span>透视强度 <strong id="focalValue">50</strong></span>
+                <input id="focalRange" type="range" min="0" max="100" value="50" />
+              </label>
+              <label>
+                <span>头动幅度 <strong id="parallaxValue">51</strong></span>
+                <input id="parallaxRange" type="range" min="0" max="100" value="51" />
+              </label>
+              <label>
+                <span>空间网格</span>
+                <input id="gridToggle" type="checkbox" checked />
+              </label>
+            </div>
+
+            <div class="tracker-card">
+              <video id="cameraPreview" autoplay playsinline muted></video>
+              <div>
+                <strong id="trackingState">未连接摄像头</strong>
+                <span id="trackingMeta">等待视觉输入</span>
+              </div>
+            </div>
+            <div class="camera-tools">
+              <select id="cameraSelect" aria-label="选择摄像头">
+                <option value="">默认摄像头</option>
+              </select>
+              <span id="cameraDiagnostics">尚未检测视频帧</span>
+            </div>
+          </aside>
+
+          <main class="stage-wrap">
+            <canvas id="stage" aria-label="三维拼贴画布"></canvas>
+            <div id="mediaOverlay" class="media-overlay" aria-hidden="true"></div>
+            <audio id="sceneAudio" preload="auto"></audio>
+            <div id="stageSubtitle" class="stage-subtitle" aria-live="polite"></div>
+            <aside class="scene-logic-pane" aria-label="当前场景组逻辑关系">
+              <div class="scene-logic-head">
+                <strong>场景逻辑</strong>
+                <span id="sceneLogicGroupName">默认场景组</span>
+                <button id="sceneLogicToggle" type="button" aria-label="最小化场景逻辑">−</button>
+              </div>
+              <div id="sceneLogicGraph" class="scene-logic-graph"></div>
+            </aside>
+          </main>
+
+          <aside class="panel panel-right" aria-label="图层参数">
+            <div class="section-title">
+              <h2>图层</h2>
+              <button id="deleteButton" type="button" title="删除选中图层">删除</button>
+            </div>
+            <div id="layerList" class="layer-list"></div>
+
+            <div class="section-title">
+              <h2>参数</h2>
+            </div>
+            <div class="control-grid">
+              <label>
+                <span>大小 <strong id="scaleValue">50</strong></span>
+                <input id="scaleRange" type="range" min="0" max="100" value="50" />
+              </label>
+            </div>
+            <div class="hidden-controls" aria-hidden="true">
+              <input id="xRange" type="range" min="0" max="100" value="50" />
+              <input id="yRange" type="range" min="0" max="100" value="50" />
+              <input id="zRange" type="range" min="0" max="100" value="50" />
+              <input id="rotationRange" type="range" min="0" max="100" value="50" />
+              <input id="tiltRange" type="range" min="0" max="100" value="50" />
+              <span id="xValue">50</span>
+              <span id="yValue">50</span>
+              <span id="zValue">50</span>
+              <span id="rotationValue">50</span>
+              <span id="tiltValue">50</span>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section id="voiceTab" class="tab-page voice-test-page" aria-label="语音对话验证">
+        <div class="voice-lab">
+          <div class="voice-panel voice-panel-large" aria-label="剧本语音互动">
+            <div class="section-title">
+              <h2>语音对话验证</h2>
+              <button id="voiceButton" type="button">开始对话</button>
+            </div>
+            <label>
+              <span>当前走向</span>
+              <select id="scriptBeatSelect">
+                <option value="opening">生存：醒来后的第一天</option>
+                <option value="choice">合作：分配任务</option>
+                <option value="reveal">冲突：资源变少</option>
+                <option value="ending">背叛：船只能载一个人</option>
+              </select>
+            </label>
+            <div class="manual-voice-test">
+              <label>
+                <span>文字测试</span>
+                <textarea
+                  id="voiceTextInput"
+                  rows="4"
+                  placeholder="也可以直接输入一句观众台词，用来验证 Kimi 回复、TTS 播报和字幕生成。"
+                ></textarea>
+              </label>
+              <button id="voiceTextSendButton" type="button">发送测试文本</button>
+            </div>
+            <span id="voiceStatus">等待观众发起语音互动</span>
+            <div class="mic-check" aria-label="麦克风电平检测">
+              <div class="mic-check-head">
+                <span id="micLevelStatus">麦克风电平未检测</span>
+                <button id="micLevelButton" type="button">检测麦克风</button>
+              </div>
+              <div class="mic-meter" aria-hidden="true">
+                <span id="micLevelBar"></span>
+              </div>
+            </div>
+            <div class="voice-log">
+              <p id="voiceTranscript">观众的话会显示在这里。</p>
+              <p id="voiceReply">页面会根据剧本走向回应，并生成字幕。</p>
+            </div>
+            <details class="voice-debug" open>
+              <summary>Kimi 调试信息</summary>
+              <label>
+                <span>发送给 Kimi 的内容</span>
+                <pre id="kimiRequestDebug">尚未发送请求。</pre>
+              </label>
+              <label>
+                <span>Kimi 原始返回</span>
+                <pre id="kimiResponseDebug">尚未收到返回。</pre>
+              </label>
+            </details>
+          </div>
+
+          <div class="caption-preview" aria-label="字幕预览">
+            <div class="caption-screen">
+              <span class="caption-kicker">字幕层预览</span>
+              <p id="voiceCaptionPreview">语音回复会同步出现在这里。未来它会作为 3D 视频播放页最前层字幕。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
