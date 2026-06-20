@@ -2973,7 +2973,7 @@
           "audioAsset": null,
           "audioLoop": true,
           "gifLoop": true,
-          "webmLoop": true,
+          "webmLoop": false,
           "flow": {
             "mode": "auto",
             "nextSceneId": "h2-motzlpd2",
@@ -3028,7 +3028,7 @@
           }
         ]
       },
-      "updatedAt": "2026-05-24T10:51:00.335Z"
+      "updatedAt": "2026-06-20T17:25:03.475Z"
     },
     "d1-h-场景体验-mpjusgbd": {
       "name": "D1-H 场景体验",
