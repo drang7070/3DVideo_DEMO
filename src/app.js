@@ -1711,6 +1711,10 @@ function isScenePlaybackFinished() {
 async function handleSceneMediaEnded() {
   if (!(isViewer || isFinal || isIntroDemo) || state.sceneEnded || !isScenePlaybackFinished()) return;
   state.sceneEnded = true;
+  if (state.pendingAgeFlow?.feedbackSceneId === state.currentSceneId) {
+    setLayoutStatus("年龄反馈场景播放完毕，等待语音反馈完成");
+    return;
+  }
   if (state.sceneFlow.mode === "auto" && state.sceneFlow.nextSceneId) {
     setLayoutStatus(`场景结束，正在进入：${getSceneLabel(state.sceneFlow.nextSceneId)}`);
     await switchScene(state.sceneFlow.nextSceneId);
@@ -3733,11 +3737,12 @@ async function handleAudienceSpeech(text) {
         return;
       }
       const cue = await getDirectorCue(text);
+      const flowHandled = await applyCueFlow(cue);
+      if (flowHandled) return;
       const reply = cue.reply || makeFinalReply(text, switched);
       ui.voiceReply.textContent = reply;
       updateCaption(reply);
       speakReply(reply);  // Start TTS in parallel with scene transition
-      await applyCueFlow(cue);
       state.voice.conversation.push({ role: "user", content: text }, { role: "assistant", content: reply });
       state.voice.conversation = state.voice.conversation.slice(-10);
       if (cue.nextBeat && scriptBeats[cue.nextBeat]) ui.scriptBeatSelect.value = cue.nextBeat;
@@ -3773,11 +3778,12 @@ async function handleAudienceSpeech(text) {
       return;
     }
     const cue = await getDirectorCue(text);
+    const flowHandled = await applyCueFlow(cue);
+    if (flowHandled) return;
     const reply = cue.reply || "我听见了。画面会跟着你的选择继续向前。";
     ui.voiceReply.textContent = reply;
     updateCaption(reply);
     speakReply(reply);  // Start TTS in parallel with scene transition
-    await applyCueFlow(cue);
     applyDirectorCue(cue);
     state.voice.conversation.push({ role: "user", content: text }, { role: "assistant", content: reply });
     state.voice.conversation = state.voice.conversation.slice(-10);
@@ -3854,7 +3860,7 @@ async function getDirectorCue(text, overrides = {}) {
 
 async function applyCueFlow(cue) {
   const flow = cue?.flow;
-  if (!flow || typeof flow !== "object") return;
+  if (!flow || typeof flow !== "object") return false;
 
   if (flow.variables && typeof flow.variables === "object") {
     state.userVariables = { ...state.userVariables, ...flow.variables };
@@ -3875,12 +3881,15 @@ async function applyCueFlow(cue) {
       handled: false,
     };
     await switchScene(flow.feedbackSceneId);
-    return;
+    return true;
   }
 
   if (flow.ageExtracted && flow.nextSceneId) {
     await switchScene(flow.nextSceneId);
+    return true;
   }
+
+  return false;
 }
 
 function maybeRunPendingAgeFeedback() {
