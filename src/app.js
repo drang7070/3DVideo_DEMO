@@ -293,7 +293,7 @@ async function init() {
   startDrawLoop();
   if (isViewer) {
     ui.viewerStartButton?.addEventListener("click", () => {
-      startCamera();
+      if (!isConverDialogueRuntime()) startCamera();
       playSceneAudio();
     });
   }
@@ -325,6 +325,12 @@ function bindEvents() {
   });
 
   on(ui.cameraButton, "click", () => {
+    if (isConverDialogueRuntime() && !isFinal) {
+      stopCamera();
+      setCameraDiagnostics("conver 场景已关闭摄像头跟随", "warn");
+      playSceneAudio();
+      return;
+    }
     if (state.cameraOn) {
       stopCamera();
     } else {
@@ -565,8 +571,10 @@ function bindEvents() {
 
   on(canvas, "pointermove", (event) => {
     const rect = canvas.getBoundingClientRect();
-    state.pointerHead.x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
-    state.pointerHead.y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+    if (!isConverDialogueRuntime()) {
+      state.pointerHead.x = ((event.clientX - rect.left) / rect.width - 0.5) * 2;
+      state.pointerHead.y = ((event.clientY - rect.top) / rect.height - 0.5) * 2;
+    }
 
     if (!isEditor || !state.dragging) return;
     const selected = getSelected();
@@ -2151,6 +2159,18 @@ function isConverDialogueRuntime() {
   return isConversationalEditor || (isViewer && editorDataSpace === "conver") || (isFinal && getSceneDataSpace() === "conver");
 }
 
+function syncConverFlatRenderUi() {
+  if (!isConverDialogueRuntime() || isFinal) return;
+  stopCamera({ silent: true });
+  if (ui.cameraButton) {
+    ui.cameraButton.disabled = true;
+    ui.cameraButton.textContent = "摄像头跟随已关闭";
+    ui.cameraButton.title = "conver 场景使用平面展示，不启用摄像头跟随";
+  }
+  if (ui.cameraSelect) ui.cameraSelect.disabled = true;
+  setCameraDiagnostics("conver 场景使用平面展示", "warn");
+}
+
 function isFinalConverSceneGroup() {
   return isFinal && !isIntroDemo && getFinalSceneGroup().dataSpace === "conver";
 }
@@ -3013,15 +3033,22 @@ document.addEventListener("visibilitychange", () => {
 
 function draw() {
   updateHead();
+  const flatRender = isConverDialogueRuntime();
   ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
   drawBackdrop();
-  if (state.showGrid) drawPerspectiveGrid();
+  if (state.showGrid && !flatRender) drawPerspectiveGrid();
   drawItems();
   updateGifOverlays();
-  drawReticle();
+  if (!flatRender) drawReticle();
 }
 
 function updateHead() {
+  if (isConverDialogueRuntime()) {
+    state.currentHead.x += (0 - state.currentHead.x) * 0.24;
+    state.currentHead.y += (0 - state.currentHead.y) * 0.24;
+    state.currentHead.z += (0 - state.currentHead.z) * 0.24;
+    return;
+  }
   const source = state.cameraOn ? state.trackedHead : state.pointerHead;
   state.currentHead.x += (source.x - state.currentHead.x) * 0.12;
   state.currentHead.y += (source.y - state.currentHead.y) * 0.12;
@@ -3111,13 +3138,14 @@ function drawItem(item) {
   const w = getMediaWidth(item.media) * item.scale * projection.scale;
   const h = getMediaHeight(item.media) * item.scale * projection.scale;
   const selected = item.id === state.selectedId;
-  const yaw = item.tilt + state.currentHead.x * 0.18 - item.x * 0.00018;
-  const squash = clamp(Math.cos(yaw), 0.45, 1);
-  const skew = Math.sin(yaw) * 0.16;
+  const flatRender = isConverDialogueRuntime();
+  const yaw = flatRender ? 0 : item.tilt + state.currentHead.x * 0.18 - item.x * 0.00018;
+  const squash = flatRender ? 1 : clamp(Math.cos(yaw), 0.45, 1);
+  const skew = flatRender ? 0 : Math.sin(yaw) * 0.16;
 
   ctx.save();
   ctx.translate(projection.x, projection.y);
-  ctx.rotate(item.rotation + state.currentHead.x * 0.035);
+  ctx.rotate(item.rotation + (flatRender ? 0 : state.currentHead.x * 0.035));
   ctx.transform(squash, 0, skew, 1, 0, 0);
 
   ctx.globalAlpha = item.alpha;
@@ -3159,12 +3187,13 @@ function updateGifOverlays() {
     const projection = project(item);
     const width = getMediaWidth(item.media) * item.scale * projection.scale;
     const height = getMediaHeight(item.media) * item.scale * projection.scale;
-    const yaw = item.tilt + state.currentHead.x * 0.18 - item.x * 0.00018;
-    const squash = clamp(Math.cos(yaw), 0.45, 1);
-    const skew = Math.sin(yaw) * 0.16;
+    const flatRender = isConverDialogueRuntime();
+    const yaw = flatRender ? 0 : item.tilt + state.currentHead.x * 0.18 - item.x * 0.00018;
+    const squash = flatRender ? 1 : clamp(Math.cos(yaw), 0.45, 1);
+    const skew = flatRender ? 0 : Math.sin(yaw) * 0.16;
     element.style.width = `${width}px`;
     element.style.height = `${height}px`;
-    element.style.transform = `translate(${projection.x - width / 2}px, ${projection.y - height / 2}px) rotate(${item.rotation + state.currentHead.x * 0.035}rad) matrix(${squash}, 0, ${skew}, 1, 0, 0)`;
+    element.style.transform = `translate(${projection.x - width / 2}px, ${projection.y - height / 2}px) rotate(${item.rotation + (flatRender ? 0 : state.currentHead.x * 0.035)}rad) matrix(${squash}, 0, ${skew}, 1, 0, 0)`;
     element.style.zIndex = String(1000 + index);
     element.style.opacity = String(item.alpha);
     element.style.outline =
@@ -3466,6 +3495,13 @@ function drawReticle() {
 }
 
 function project(item) {
+  if (isConverDialogueRuntime()) {
+    return {
+      x: state.width / 2 + item.x,
+      y: state.height * 0.46 + item.y,
+      scale: isIntroEmbed ? introEmbedProjectionScale : 1,
+    };
+  }
   const head = state.currentHead;
   const cameraX = head.x * state.parallax * 1.9;
   const cameraY = head.y * state.parallax * 1.05;

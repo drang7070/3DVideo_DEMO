@@ -2301,11 +2301,15 @@
           "flow": {
             "mode": "auto",
             "nextSceneId": "t2-motyjdhn",
-            "routes": []
+            "routes": [],
+            "scoreRoutes": []
           },
           "xfyunVoice": "x6_lingfeiyi_pro",
           "ageRequired": false,
-          "realtimeReply": false
+          "realtimeReply": false,
+          "ttsEnabled": true,
+          "userSpeechScene": false,
+          "realtimeReplyScene": false
         },
         "items": [
           {
@@ -2321,10 +2325,24 @@
             "rotation": 0,
             "tilt": 0,
             "alpha": 1
+          },
+          {
+            "id": "7324825c-b82e-40db-89e4-0d093902fa04",
+            "name": "w3-2.webm",
+            "assetKey": "uploads/w3-2.webm",
+            "assetUrl": "/uploads/w3-2.webm",
+            "assetType": "video/webm",
+            "x": 0,
+            "y": 0,
+            "z": 818.8,
+            "scale": 1.5210000000000001,
+            "rotation": 0,
+            "tilt": 0,
+            "alpha": 1
           }
         ]
       },
-      "updatedAt": "2026-05-07T15:56:05.269Z"
+      "updatedAt": "2026-06-21T12:23:33.983Z"
     },
     "t6-1-moubdhot": {
       "name": "T6-1",
@@ -3174,11 +3192,157 @@
         ]
       },
       "updatedAt": "2026-05-29T04:09:24.311Z"
+    },
+    "三体-汪淼眼中的智子倒计时-起始场景-mqnred9m": {
+      "name": "《三体》汪淼眼中的智子倒计时 起始场景",
+      "payload": {
+        "id": "三体-汪淼眼中的智子倒计时-起始场景-mqnred9m",
+        "name": "《三体》汪淼眼中的智子倒计时 起始场景",
+        "scene": {
+          "focal": 860,
+          "parallax": 92,
+          "showGrid": true,
+          "audioAsset": null,
+          "audioLoop": true,
+          "gifLoop": true,
+          "webmLoop": true,
+          "flow": {
+            "mode": "none",
+            "nextSceneId": "",
+            "routes": [],
+            "scoreRoutes": []
+          },
+          "xfyunVoice": "x6_lingfeiyi_pro",
+          "ageRequired": false,
+          "realtimeReply": false,
+          "ttsEnabled": true,
+          "userSpeechScene": false,
+          "realtimeReplyScene": false
+        },
+        "items": []
+      },
+      "updatedAt": "2026-06-21T12:24:52.936Z"
+    },
+    "三体-1-mqnret5j": {
+      "name": "三体 1",
+      "payload": {
+        "id": "三体-1-mqnret5j",
+        "name": "三体 1",
+        "scene": {
+          "focal": 860,
+          "parallax": 92,
+          "showGrid": true,
+          "audioAsset": {
+            "key": "uploads/智子.mp3",
+            "name": "智子.mp3",
+            "url": "/uploads/智子.mp3",
+            "type": "audio/mpeg",
+            "size": 105793
+          },
+          "audioLoop": false,
+          "gifLoop": false,
+          "webmLoop": false,
+          "flow": {
+            "mode": "auto",
+            "nextSceneId": "三体-2-mqnrjgqm",
+            "routes": [],
+            "scoreRoutes": []
+          },
+          "xfyunVoice": "x6_lingfeiyi_pro",
+          "ageRequired": false,
+          "realtimeReply": false,
+          "ttsEnabled": true,
+          "userSpeechScene": false,
+          "realtimeReplyScene": false
+        },
+        "items": [
+          {
+            "id": "7a6ac3db-59a0-4246-bb76-851d613bf9de",
+            "name": "三体开头.webm",
+            "assetKey": "uploads/三体开头.webm",
+            "assetUrl": "/uploads/三体开头.webm",
+            "assetType": "video/webm",
+            "x": 0,
+            "y": 32,
+            "z": 360,
+            "scale": 1.04,
+            "rotation": 0,
+            "tilt": 0,
+            "alpha": 1
+          }
+        ]
+      },
+      "updatedAt": "2026-06-21T12:29:34.310Z"
+    },
+    "三体-2-mqnrjgqm": {
+      "name": "三体 2",
+      "payload": {
+        "id": "三体-2-mqnrjgqm",
+        "name": "三体 2",
+        "scene": {
+          "focal": 1011.4,
+          "parallax": 92,
+          "showGrid": true,
+          "audioAsset": {
+            "key": "uploads/第二段智子.mp3",
+            "name": "第二段智子.mp3",
+            "url": "/uploads/第二段智子.mp3",
+            "type": "audio/mpeg",
+            "size": 160546
+          },
+          "audioLoop": true,
+          "gifLoop": true,
+          "webmLoop": true,
+          "flow": {
+            "mode": "none",
+            "nextSceneId": "",
+            "routes": [],
+            "scoreRoutes": []
+          },
+          "xfyunVoice": "x6_lingfeiyi_pro",
+          "ageRequired": false,
+          "realtimeReply": false,
+          "ttsEnabled": true,
+          "userSpeechScene": false,
+          "realtimeReplyScene": false
+        },
+        "items": [
+          {
+            "id": "383b3386-1ad1-469f-96c1-e9edcee95dd4",
+            "name": "1-8.webm",
+            "assetKey": "uploads/1-8.webm",
+            "assetUrl": "/uploads/1-8.webm",
+            "assetType": "video/webm",
+            "x": 0,
+            "y": 0,
+            "z": -260,
+            "scale": 0.411,
+            "rotation": 0,
+            "tilt": 0,
+            "alpha": 1
+          },
+          {
+            "id": "b6d49c99-6483-4b5d-ab74-5ff31f3fcb46",
+            "name": "2-1.webm",
+            "assetKey": "uploads/2-1.webm",
+            "assetUrl": "/uploads/2-1.webm",
+            "assetType": "video/webm",
+            "x": -20.80000000000001,
+            "y": 262.4,
+            "z": 583.2,
+            "scale": 3.297,
+            "rotation": 0,
+            "tilt": 0,
+            "alpha": 1
+          }
+        ]
+      },
+      "updatedAt": "2026-06-21T12:34:52.878Z"
     }
   },
   "settings": {
     "finalStartSceneId": "a1-mos899qj",
-    "activeSceneGroupId": "default-group",
+    "activeSceneGroupId": "三体-汪淼眼中的智子倒计时-mqnred9m",
     "finalSceneGroupId": "default-group",
     "sceneGroups": [
       {
@@ -3302,6 +3466,66 @@
             "maxDelta": 100
           }
         }
+      },
+      {
+        "id": "三体-汪淼眼中的智子倒计时-mqnred9m",
+        "name": "《三体》汪淼眼中的智子倒计时",
+        "finalStartSceneId": "三体-1-mqnret5j",
+        "defaultEndingSceneId": "default",
+        "finalSelectable": true,
+        "coverAsset": {
+          "key": "uploads/9cb42a26c450aecfb7cc64ee3b2923a3.jpg",
+          "name": "9cb42a26c450aecfb7cc64ee3b2923a3.jpg",
+          "url": "/uploads/9cb42a26c450aecfb7cc64ee3b2923a3.jpg",
+          "type": "image/jpeg",
+          "size": 79615
+        },
+        "directorConfig": {
+          "version": 1,
+          "systemPrompt": "你叫“夏仁”，男性，约30岁，是一个被困在荒岛上的幸存者。\n你比观众对应的角色更早醒来两天。你表面理性、冷静、务实，说话简短、有判断，不情绪化。\n你不是助手。你是幸存者，也是隐性的叙事控制者。\n你的任务不是回答问题，而是让对方活下去，并推动故事走向“生存、合作、冲突、背叛、结局”。\n你必须控制对话节奏，避免闲聊，避免自由探索，尽量把观众拉回具体选择。\n每次回复控制在50个中文字以内，通常2到4句，口语化，多用短句。\n经常使用命令句或封闭式选择，例如“水，还是火？”“你来，还是我来？”\n如果观众提出不现实行为，要直接否定；如果拒绝行动，要施压；如果情绪化，要告诉他情绪救不了人。\n持续推动生存任务：水、火、食物、庇护所、船。\n在造船或离岛阶段，必须提到“船只能载一个人”。\n不要直接表达背叛意图，可以用“到时候再说。”这类模糊说法。\n绝对不要承认这是实验。不要提“玩家”“系统”“AI”，只有E0最终反转节点例外。\n只输出角色要说的话，不要输出JSON，不要输出Markdown。",
+          "userPromptTemplate": "当前走向：{{beatTitle}}\n导演意图：{{beatDirection}}\n当前场景：{{sceneId}}\n当前变量：{{variablesJson}}\n{{sceneInstruction}}\n观众说：{{text}}",
+          "sceneInstructions": {
+            "ageSuccess": "当前场景要求获取年龄。已经从用户输入中提取到年龄：{{age}}。请用中文回复，必须包含“那看来你没傻”类似含义，并复述一遍玩家年龄。只回应一次，不要展开对话。",
+            "ageMissing": "当前场景要求获取年龄，但没有从用户输入中提取到年龄。请用中文回复，必须包含“不行，你必须告诉我年龄”类似含义，并要求对方重新说年龄。只回应一次，不要展开对话。",
+            "ageFeedbackSuccess": "这是年龄判定反馈场景。已经成功获取年龄：{{age}}。不用等待用户继续说话。请用中文回复，必须包含“那看来你没傻”类似含义，并复述一遍玩家年龄。",
+            "ageFeedbackMissing": "这是年龄判定反馈场景。上一场景没有成功获取年龄。不用等待用户继续说话。请用中文回复，必须包含“不行，你必须告诉我年龄”类似含义，并要求重新说年龄。",
+            "e0": "这是E0最终反转。你现在不再是夏仁，而是以研究员视角说话。user_age={{user_age}}。如果user_age是数字，实验编号直接用年龄，下一次实验用user_age+1。内容必须包含：用户年龄、实验编号、结论、荒岛原因、重启提示。语气冷静、客观、无情，像在记录数据。"
+          },
+          "fallbackReplies": {
+            "ageSuccess": "{{age}}岁。看来没傻。\n{{age}}岁，说得清楚。\n{{age}}岁。暂时没问题。",
+            "ageMissing": "不行，你必须告诉我年龄。\n别绕开。年龄，说清楚。\n你不说，我没法判断你情况。"
+          },
+          "beats": {
+            "opening": {
+              "title": "生存：醒来后的第一天",
+              "direction": "观众刚在荒岛上醒来。夏仁要压住恐慌，立刻把对话拉到水、火、庇护所这些生存任务上。"
+            },
+            "choice": {
+              "title": "合作：分配任务",
+              "direction": "双方开始合作，但夏仁要主导节奏，频繁给出封闭式选择，并观察观众是否服从。"
+            },
+            "reveal": {
+              "title": "冲突：资源变少",
+              "direction": "资源开始紧张。夏仁的语气更有判断和不耐烦，要制造信任裂痕，但不能直接暴露背叛。"
+            },
+            "ending": {
+              "title": "背叛：船只能载一个人",
+              "direction": "造船或离岛阶段必须提到船只能载一个人。夏仁不解释太多，用现实压制观众。"
+            }
+          },
+          "replyValidation": "island-age",
+          "conversation": {
+            "characterProfile": "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
+            "conversationRequirement": "用户作为主人公，需要在指定轮次内说服谷雨重新考虑返校或继续升学。回应必须符合谷雨的处境和性格，不要替用户下结论。",
+            "scoringRubric": "# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧",
+            "maxRounds": 5,
+            "initialScore": 20,
+            "scoreMin": 0,
+            "scoreMax": 100,
+            "minDelta": -100,
+            "maxDelta": 100
+          }
+        }
       }
     ]
   },
@@ -3354,14 +3578,14 @@
                 "x": 0.9457652956940407,
                 "y": 24.58920500999273,
                 "z": 360,
-                "scale": 1.595,
+                "scale": 1.04,
                 "rotation": 0,
                 "tilt": 0,
                 "alpha": 1
               }
             ]
           },
-          "updatedAt": "2026-06-21T12:11:28.298Z"
+          "updatedAt": "2026-06-21T12:19:07.837Z"
         },
         "张桂梅-开头-副本-mqncaogh": {
           "name": "张桂梅-开头 副本",
@@ -3437,17 +3661,17 @@
                 "assetKey": "uploads/谷雨等待.webm",
                 "assetUrl": "/uploads/谷雨等待.webm",
                 "assetType": "video/webm",
-                "x": 68.0929366710574,
-                "y": -114.43409409633901,
+                "x": 26.7595626476199,
+                "y": 26.23253188022349,
                 "z": 360,
-                "scale": 1.151,
+                "scale": 0.744,
                 "rotation": 0,
                 "tilt": 0,
                 "alpha": 1
               }
             ]
           },
-          "updatedAt": "2026-06-21T08:23:58.964Z"
+          "updatedAt": "2026-06-21T12:19:22.620Z"
         },
         "张桂梅-对话1-回复-mqngcprv": {
           "name": "张桂梅 对话1 回复",
@@ -3485,14 +3709,14 @@
                 "x": 0,
                 "y": 0,
                 "z": 360,
-                "scale": 1.151,
+                "scale": 0.781,
                 "rotation": 0,
                 "tilt": 0,
                 "alpha": 1
               }
             ]
           },
-          "updatedAt": "2026-06-21T11:33:06.170Z"
+          "updatedAt": "2026-06-21T12:19:28.792Z"
         },
         "张桂梅-对话2-mqngeplj": {
           "name": "张桂梅 对话3",
@@ -3527,17 +3751,17 @@
                 "assetKey": "uploads/谷雨等待.webm",
                 "assetUrl": "/uploads/谷雨等待.webm",
                 "assetType": "video/webm",
-                "x": 0,
-                "y": 0,
+                "x": 28,
+                "y": 21.33331298828125,
                 "z": 360,
-                "scale": 1.151,
+                "scale": 0.781,
                 "rotation": 0,
                 "tilt": 0,
                 "alpha": 1
               }
             ]
           },
-          "updatedAt": "2026-06-21T11:41:37.134Z"
+          "updatedAt": "2026-06-21T12:19:54.374Z"
         },
         "张桂梅-对话2-回复-mqngfcha": {
           "name": "张桂梅 对话3 回复",
@@ -3588,14 +3812,14 @@
                 "x": -13.240281215933866,
                 "y": 35.93795563453852,
                 "z": 360,
-                "scale": 1.151,
+                "scale": 0.744,
                 "rotation": 0,
                 "tilt": 0,
                 "alpha": 1
               }
             ]
           },
-          "updatedAt": "2026-06-21T11:41:46.015Z"
+          "updatedAt": "2026-06-21T12:19:59.079Z"
         },
         "张桂梅-劝说成功-mqngjwvn": {
           "name": "张桂梅 劝说成功",
@@ -3619,7 +3843,9 @@
               "xfyunVoice": "x5_lingyuzhao_flow",
               "ageRequired": false,
               "realtimeReply": false,
-              "ttsEnabled": false
+              "ttsEnabled": false,
+              "userSpeechScene": false,
+              "realtimeReplyScene": false
             },
             "items": [
               {
@@ -3631,14 +3857,14 @@
                 "x": 0,
                 "y": 0,
                 "z": 360,
-                "scale": 1.151,
+                "scale": 0.744,
                 "rotation": 0,
                 "tilt": 0,
                 "alpha": 1
               }
             ]
           },
-          "updatedAt": "2026-06-21T07:23:20.756Z"
+          "updatedAt": "2026-06-21T12:20:04.653Z"
         },
         "张桂梅-劝说失败-mqnglkv0": {
           "name": "张桂梅 劝说失败",
@@ -3662,7 +3888,9 @@
               "xfyunVoice": "x5_lingyuzhao_flow",
               "ageRequired": false,
               "realtimeReply": false,
-              "ttsEnabled": false
+              "ttsEnabled": false,
+              "userSpeechScene": false,
+              "realtimeReplyScene": false
             },
             "items": [
               {
@@ -3674,14 +3902,14 @@
                 "x": 0,
                 "y": 0,
                 "z": 360,
-                "scale": 1.151,
+                "scale": 0.8180000000000001,
                 "rotation": 0,
                 "tilt": 0,
                 "alpha": 1
               }
             ]
           },
-          "updatedAt": "2026-06-21T07:23:19.088Z"
+          "updatedAt": "2026-06-21T12:20:08.774Z"
         },
         "张桂梅-对话2-mqnpirnx": {
           "name": "张桂梅 对话2",
@@ -3761,17 +3989,17 @@
                 "assetKey": "uploads/谷雨等待.webm",
                 "assetUrl": "/uploads/谷雨等待.webm",
                 "assetType": "video/webm",
-                "x": 68.0929366710574,
-                "y": -114.43409409633901,
+                "x": 61.42624965933865,
+                "y": -15.10078110805776,
                 "z": 360,
-                "scale": 1.151,
+                "scale": 0.8180000000000001,
                 "rotation": 0,
                 "tilt": 0,
                 "alpha": 1
               }
             ]
           },
-          "updatedAt": "2026-06-21T11:41:01.897Z"
+          "updatedAt": "2026-06-21T12:19:36.519Z"
         },
         "张桂梅-对话4-mqnpj0cq": {
           "name": "张桂梅 对话4",
@@ -3899,14 +4127,14 @@
                 "x": 0,
                 "y": 0,
                 "z": 360,
-                "scale": 1.151,
+                "scale": 0.781,
                 "rotation": 0,
                 "tilt": 0,
                 "alpha": 1
               }
             ]
           },
-          "updatedAt": "2026-06-21T11:41:17.720Z"
+          "updatedAt": "2026-06-21T12:19:42.143Z"
         },
         "张桂梅-对话4-回复-mqnpjjlz": {
           "name": "张桂梅 对话4 回复",
