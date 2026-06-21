@@ -156,6 +156,9 @@ const state = {
     status: "idle",
     promise: null,
     token: 0,
+    loadedUrls: new Set(),
+    loadingUrls: new Map(),
+    layoutCache: new Map(),
   },
   activeSceneGroupId: urlParams.get("group") || "default-group",
   finalSceneGroupId: urlParams.get("group") || "default-group",
@@ -256,6 +259,8 @@ const DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE = [
 const GENERIC_DIRECTOR_SYSTEM_PROMPT = "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue.";
 
 const DEFAULT_CONVERSATION_SCORING_STANDARD = '# 谷雨说服度评分机制\n\n初始分：60分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。只写角色真正说出口的话，不写动作、神态、心理、旁白或舞台指示。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧';
+
+const FINAL_PRELOAD_SCENE_WINDOW = 10;
 
 const DEFAULT_CONVERSATION_CONFIG = {
   characterProfile: "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
@@ -2554,6 +2559,7 @@ async function switchFinalScene(sceneId) {
     requestAnimationFrame(() => stage?.classList.remove("scene-clarifying"));
     window.setTimeout(() => ghost?.remove(), 260);
   });
+  scheduleFinalSceneWindowPreload(targetSceneId);
 }
 
 function createSceneGhost({ freeze = false } = {}) {
@@ -3437,15 +3443,16 @@ function resumeGifElement(element) {
 async function handlePlayPauseClick() {
   if (isFinal && state.paused && !isIntroDemo) {
     if (state.finalPreload.status === "loading") return;
-    const ready = await ensureFinalSceneGroupPreloaded();
+    const ready = await ensureFinalSceneWindowPreloaded();
     if (!ready) return;
   }
   togglePlayback();
 }
 
-async function ensureFinalSceneGroupPreloaded() {
+async function ensureFinalSceneWindowPreloaded() {
   const group = getFinalSceneGroup();
   const groupId = group?.id || state.finalSceneGroupId || "default-group";
+  const startSceneId = group?.finalStartSceneId || state.currentSceneId || "default";
   if (state.finalPreload.groupId === groupId && state.finalPreload.status === "ready") return true;
   if (state.finalPreload.groupId === groupId && state.finalPreload.promise) {
     await state.finalPreload.promise;
@@ -3453,43 +3460,58 @@ async function ensureFinalSceneGroupPreloaded() {
   }
 
   const token = state.finalPreload.token + 1;
-  state.finalPreload = {
-    groupId,
-    status: "loading",
-    promise: null,
-    token,
-  };
-  const promise = preloadFinalSceneGroupWebmAssets(group, token);
+  state.finalPreload.groupId = groupId;
+  state.finalPreload.status = "loading";
+  state.finalPreload.token = token;
+  const promise = preloadFinalSceneWindow(group, startSceneId, token, { showOverlay: true });
   state.finalPreload.promise = promise;
   await promise;
   return state.finalPreload.groupId === groupId && state.finalPreload.status === "ready";
 }
 
-async function preloadFinalSceneGroupWebmAssets(group, token) {
-  showFinalPreloadOverlay({ title: "正在加载视频素材", detail: "正在整理场景素材", percent: 0 });
+async function preloadFinalSceneWindow(group, startSceneId, token, { showOverlay = false } = {}) {
+  if (showOverlay) {
+    showFinalPreloadOverlay({
+      title: "\u6b63\u5728\u52a0\u8f7d\u89c6\u9891\u7d20\u6750",
+      detail: "\u6b63\u5728\u6574\u7406\u524d " + FINAL_PRELOAD_SCENE_WINDOW + " \u4e2a\u573a\u666f",
+      percent: 0,
+    });
+  }
   try {
-    const urls = await collectFinalSceneGroupWebmUrls(group, token);
+    const urls = await collectFinalSceneWindowWebmUrls(group, startSceneId, token, { showOverlay });
     if (token !== state.finalPreload.token) return;
-    if (!urls.length) {
-      updateFinalPreloadOverlay({ detail: "当前场景组没有 WebM 素材", percent: 100 });
-      await delay(180);
+    const pendingUrls = urls.filter((url) => !state.finalPreload.loadedUrls.has(url));
+
+    if (!pendingUrls.length) {
+      if (showOverlay) {
+        updateFinalPreloadOverlay({ detail: "\u89c6\u9891\u7d20\u6750\u5df2\u5728\u7f13\u5b58\u4e2d", percent: 100 });
+        await delay(160);
+      }
       markFinalPreloadReady(group?.id);
-      hideFinalPreloadOverlay();
+      if (showOverlay) hideFinalPreloadOverlay();
       return;
     }
 
-    await preloadWebmUrlsWithProgress(urls, token);
+    await preloadWebmUrlsWithProgress(pendingUrls, token, { showOverlay });
     if (token !== state.finalPreload.token) return;
     markFinalPreloadReady(group?.id);
-    updateFinalPreloadOverlay({ detail: "视频素材已加载完成", percent: 100 });
-    await delay(220);
-    hideFinalPreloadOverlay();
+    if (showOverlay) {
+      updateFinalPreloadOverlay({ detail: "\u524d\u65b9\u89c6\u9891\u7d20\u6750\u5df2\u52a0\u8f7d\u5b8c\u6210", percent: 100 });
+      await delay(220);
+      hideFinalPreloadOverlay();
+    }
   } catch (error) {
-    console.warn("[final preload] 场景组素材预加载失败：", error);
+    console.warn("[final preload] scene window preload failed:", error);
     if (token !== state.finalPreload.token) return;
     state.finalPreload.status = "failed";
-    updateFinalPreloadOverlay({ detail: "视频预加载失败，请稍后重试", percent: 0 });
-    setLayoutStatus("视频预加载失败，请稍后重试", "warn");
+    if (showOverlay) {
+      updateFinalPreloadOverlay({ detail: "\u89c6\u9891\u9884\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5", percent: 0 });
+    }
+    setLayoutStatus("\u89c6\u9891\u9884\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5", "warn");
+  } finally {
+    if (state.finalPreload.promise && token === state.finalPreload.token) {
+      state.finalPreload.promise = null;
+    }
   }
 }
 
@@ -3502,15 +3524,32 @@ function markFinalPreloadReady(groupId) {
 function resetFinalPreloadState() {
   if (!isFinal) return;
   state.finalPreload.token += 1;
-  state.finalPreload.groupId = "";
+  state.finalPreload.groupId = state.finalSceneGroupId || "";
   state.finalPreload.status = "idle";
   state.finalPreload.promise = null;
+  state.finalPreload.loadedUrls = new Set();
+  state.finalPreload.loadingUrls = new Map();
+  state.finalPreload.layoutCache = new Map();
   hideFinalPreloadOverlay();
 }
 
-async function collectFinalSceneGroupWebmUrls(group, token) {
+function scheduleFinalSceneWindowPreload(startSceneId = state.currentSceneId) {
+  if (!isFinal || isIntroDemo || state.paused) return;
+  const group = getFinalSceneGroup();
+  const groupId = group?.id || state.finalSceneGroupId || "default-group";
+  if (state.finalPreload.groupId && state.finalPreload.groupId !== groupId) return;
+  const token = state.finalPreload.token;
+  window.setTimeout(() => {
+    if (token !== state.finalPreload.token || state.paused) return;
+    preloadFinalSceneWindow(group, startSceneId, token, { showOverlay: false }).catch((error) => {
+      console.warn("[final preload] background preload failed:", error);
+    });
+  }, 250);
+}
+
+async function collectFinalSceneWindowWebmUrls(group, startSceneId, token, { showOverlay = false } = {}) {
   const urls = new Set();
-  const layouts = await fetchFinalSceneGroupLayouts(group, token);
+  const layouts = await fetchFinalSceneWindowLayouts(group, startSceneId, token, { showOverlay });
   layouts.forEach((layout) => {
     (Array.isArray(layout?.items) ? layout.items : []).forEach((record) => {
       const asset = assetFromLayoutRecord(record);
@@ -3520,20 +3559,24 @@ async function collectFinalSceneGroupWebmUrls(group, token) {
   return [...urls];
 }
 
-async function fetchFinalSceneGroupLayouts(group, token) {
+async function fetchFinalSceneWindowLayouts(group, startSceneId, token, { showOverlay = false } = {}) {
   const dataSpace = group?.dataSpace || getSceneDataSpace(group?.finalStartSceneId);
-  const startSceneId = group?.finalStartSceneId || state.currentSceneId || "default";
   const layouts = [];
   const seen = new Set();
-  const queued = [startSceneId].filter(Boolean);
+  const queued = [startSceneId || group?.finalStartSceneId || state.currentSceneId || "default"].filter(Boolean);
 
-  while (queued.length && layouts.length < 80) {
+  while (queued.length && layouts.length < FINAL_PRELOAD_SCENE_WINDOW) {
     if (token !== state.finalPreload.token) return layouts;
     const sceneId = queued.shift();
     if (!sceneId || seen.has(sceneId)) continue;
     seen.add(sceneId);
-    updateFinalPreloadOverlay({ detail: `正在扫描场景 ${layouts.length + 1}`, percent: 0 });
-    const layout = sceneId === state.currentSceneId ? serializeLayout() : await fetchSceneLayout(sceneId, dataSpace);
+    if (showOverlay) {
+      updateFinalPreloadOverlay({
+        detail: "\u6b63\u5728\u626b\u63cf\u573a\u666f " + (layouts.length + 1) + "/" + FINAL_PRELOAD_SCENE_WINDOW,
+        percent: 0,
+      });
+    }
+    const layout = await getFinalSceneLayoutForPreload(sceneId, dataSpace);
     if (!layout) continue;
     layouts.push(layout);
     getSceneFlowEdges(sceneId, normalizeSceneFlow(layout.scene?.flow || layout.scene?.sceneFlow)).forEach((edge) => {
@@ -3543,19 +3586,29 @@ async function fetchFinalSceneGroupLayouts(group, token) {
   return layouts;
 }
 
-async function preloadWebmUrlsWithProgress(urls, token) {
+async function getFinalSceneLayoutForPreload(sceneId, dataSpace) {
+  if (sceneId === state.currentSceneId) return serializeLayout();
+  const cacheKey = dataSpace + ":" + sceneId;
+  if (state.finalPreload.layoutCache.has(cacheKey)) return state.finalPreload.layoutCache.get(cacheKey);
+  const layout = await fetchSceneLayout(sceneId, dataSpace);
+  if (layout) state.finalPreload.layoutCache.set(cacheKey, layout);
+  return layout;
+}
+
+async function preloadWebmUrlsWithProgress(urls, token, { showOverlay = false } = {}) {
   const entries = urls.map((url) => ({ url, loaded: 0, total: 0, done: false, failed: false }));
   let nextIndex = 0;
   const concurrency = Math.min(4, Math.max(1, entries.length));
 
   const update = () => {
+    if (!showOverlay) return;
     const knownTotal = entries.reduce((sum, entry) => sum + entry.total, 0);
     const knownLoaded = entries.reduce((sum, entry) => sum + Math.min(entry.loaded, entry.total || entry.loaded), 0);
     const completed = entries.filter((entry) => entry.done || entry.failed).length;
     const percent = knownTotal > 0 ? Math.round((knownLoaded / knownTotal) * 100) : Math.round((completed / entries.length) * 100);
     const failed = entries.filter((entry) => entry.failed).length;
-    const suffix = failed ? `，${failed} 个素材未能完整预载` : "";
-    updateFinalPreloadOverlay({ detail: `已加载 ${completed}/${entries.length}${suffix}`, percent });
+    const suffix = failed ? "\uff0c" + failed + " \u4e2a\u7d20\u6750\u672a\u80fd\u5b8c\u6574\u9884\u8f7d" : "";
+    updateFinalPreloadOverlay({ detail: "\u5df2\u52a0\u8f7d " + completed + "/" + entries.length + suffix, percent });
   };
 
   update();
@@ -3566,8 +3619,9 @@ async function preloadWebmUrlsWithProgress(urls, token) {
       try {
         await preloadWebmUrl(entry, update);
         entry.done = true;
+        state.finalPreload.loadedUrls.add(entry.url);
       } catch (error) {
-        console.warn(`[final preload] ${entry.url} 加载失败：`, error);
+        console.warn("[final preload] " + entry.url + " failed:", error);
         entry.failed = true;
       }
       update();
@@ -3578,6 +3632,22 @@ async function preloadWebmUrlsWithProgress(urls, token) {
 }
 
 async function preloadWebmUrl(entry, onProgress) {
+  if (state.finalPreload.loadedUrls.has(entry.url)) return;
+  if (state.finalPreload.loadingUrls.has(entry.url)) {
+    await state.finalPreload.loadingUrls.get(entry.url);
+    return;
+  }
+  const promise = preloadWebmUrlUncached(entry, onProgress);
+  state.finalPreload.loadingUrls.set(entry.url, promise);
+  try {
+    await promise;
+    state.finalPreload.loadedUrls.add(entry.url);
+  } finally {
+    state.finalPreload.loadingUrls.delete(entry.url);
+  }
+}
+
+async function preloadWebmUrlUncached(entry, onProgress) {
   try {
     await fetchAndCacheAsset(entry, onProgress);
   } catch (error) {
@@ -3587,7 +3657,7 @@ async function preloadWebmUrl(entry, onProgress) {
 
 async function fetchAndCacheAsset(entry, onProgress) {
   const response = await fetch(entry.url, { cache: "force-cache" });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  if (!response.ok) throw new Error("HTTP " + response.status);
   entry.total = Number(response.headers.get("content-length")) || 0;
   if (!response.body) {
     const buffer = await response.arrayBuffer();
@@ -3622,7 +3692,7 @@ function updateFinalPreloadOverlay({ title, detail, percent } = {}) {
   const value = clamp(Math.round(Number(percent) || 0), 0, 100);
   if (title && ui.finalPreloadTitle) ui.finalPreloadTitle.textContent = title;
   if (detail && ui.finalPreloadStatus) ui.finalPreloadStatus.textContent = detail;
-  if (ui.finalPreloadBar) ui.finalPreloadBar.style.width = `${value}%`;
+  if (ui.finalPreloadBar) ui.finalPreloadBar.style.width = value + "%";
   const progress = ui.finalPreloadOverlay?.querySelector(".final-preload-bar");
   progress?.setAttribute("aria-valuenow", String(value));
 }
