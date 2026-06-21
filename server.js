@@ -17,6 +17,7 @@ const moonshotApiKey = process.env.MOONSHOT_API_KEY || "";
 const moonshotBaseUrl = process.env.MOONSHOT_BASE_URL || "https://api.moonshot.cn/v1";
 const kimiModel = process.env.KIMI_MODEL || "kimi-k2.5";
 const kimiTimeoutMs = Number(process.env.KIMI_TIMEOUT_MS || 12000);
+const kimiConversationTimeoutMs = Number(process.env.KIMI_CONVERSATION_TIMEOUT_MS || Math.max(kimiTimeoutMs, 30000));
 const kimiMaxTokens = Number(process.env.KIMI_MAX_TOKENS || 160);
 const xfyunAppId = process.env.XFYUN_APP_ID || "";
 const xfyunApiKey = process.env.XFYUN_API_KEY || "";
@@ -42,7 +43,7 @@ const DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE = [
 
 const GENERIC_DIRECTOR_SYSTEM_PROMPT = "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue. Output only the spoken line, no JSON and no Markdown.";
 
-const DEFAULT_CONVERSATION_SCORING_STANDARD = '# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧';
+const DEFAULT_CONVERSATION_SCORING_STANDARD = '# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。只写角色真正说出口的话，不写动作、神态、心理、旁白或舞台指示。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧';
 
 const DEFAULT_CONVERSATION_CONFIG = {
   characterProfile: "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
@@ -477,8 +478,15 @@ async function handleConversationCue(request, response) {
   });
 
   const maxTokens = Math.max(kimiMaxTokens, 520);
-  log("info", "moonshot_conversation_request", { model: kimiModel, scene: scene.id, roundIndex });
-  const { response: upstreamResponse, payload: upstreamPayload, timing } = await requestMoonshot(messages, maxTokens);
+  log("info", "moonshot_conversation_request", {
+    model: kimiModel,
+    scene: scene.id,
+    roundIndex,
+    timeoutMs: kimiConversationTimeoutMs,
+  });
+  const { response: upstreamResponse, payload: upstreamPayload, timing } = await requestMoonshot(messages, maxTokens, {
+    timeoutMs: kimiConversationTimeoutMs,
+  });
   if (!upstreamResponse.ok) {
     log("error", "moonshot_conversation_error", { status: upstreamResponse.status, ms: Date.now() - requestStartedAt });
     sendJson(response, upstreamResponse.status, {
@@ -497,7 +505,7 @@ async function handleConversationCue(request, response) {
       request: {
         url: `${moonshotBaseUrl}/chat/completions`,
         model: kimiModel,
-        timeoutMs: kimiTimeoutMs,
+        timeoutMs: kimiConversationTimeoutMs,
         maxTokens,
         scene,
         variables,
@@ -686,7 +694,8 @@ function synthesizeXfyunTtsToStream(text, voice, writeStream) {
   });
 }
 
-async function requestMoonshot(messages, maxTokens = kimiMaxTokens) {
+async function requestMoonshot(messages, maxTokens = kimiMaxTokens, options = {}) {
+  const timeoutMs = Number(options.timeoutMs || kimiTimeoutMs);
   const startedAt = Date.now();
   const attempts = [
     {
@@ -702,7 +711,7 @@ async function requestMoonshot(messages, maxTokens = kimiMaxTokens) {
     const body = attempts[index];
     const attemptStartedAt = Date.now();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), kimiTimeoutMs);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response;
     let payload;
     try {
@@ -726,7 +735,7 @@ async function requestMoonshot(messages, maxTokens = kimiMaxTokens) {
         };
         return {
           response: { ok: false, status: 504, statusText: "Moonshot request timed out" },
-          payload: { error: { message: `Kimi response timed out after ${kimiTimeoutMs}ms.` } },
+          payload: { error: { message: `Kimi response timed out after ${timeoutMs}ms.` } },
           timing,
         };
       }
@@ -1729,6 +1738,8 @@ function buildConversationMessages(text, conversation, context = {}) {
   const systemPrompt = [
     "你正在控制一个影视作品人物，用户是正在与该人物对话的主人公。",
     "你必须先以该人物身份自然回应用户，然后根据给定的说服度评价标准给出当前总说服度。",
+    "【角色回应】只能包含角色真正说出口的语言，不得包含动作、神态、心理描写、旁白、舞台指示或镜头描述。",
+    "【角色回应】不要写括号、星号、破折号包裹的动作提示；不要写‘她低头’‘沉默了一下’‘叹气’这类非语言内容。",
     "不要判断剧情成功、失败或跳转；最终走向由前端在完成指定轮次后根据 currentScore 判断。",
     `本轮开始前说服度：${currentScore}%。分数范围：${config.scoreMin}-${config.scoreMax}。`,
     `当前轮次：${roundIndex}。配置轮次上限：${config.maxRounds}。`,
@@ -1746,6 +1757,7 @@ function buildConversationMessages(text, conversation, context = {}) {
   const userPrompt = [
     `用户最新发言：${text}`,
     "请以角色身份回应，并按照说服度评价标准输出当前评分。",
+    "注意：【角色回应】只写角色台词，不写任何动作、表情、心理、旁白或舞台指示，因为该内容会直接送入 TTS 朗读。",
   ].join("\n");
   return [
     { role: "system", content: systemPrompt },
@@ -1758,11 +1770,13 @@ function parseConversationCue(content, context = {}) {
   const config = normalizeConversationConfig(context.conversationConfig);
   const previousScore = clampNumber(context.currentScore, config.initialScore, config.scoreMin, config.scoreMax);
   const raw = String(content || "").replace(/```(?:json)?|```/g, "").trim();
-  const scoreMatch = raw.match(/【\s*说服度\s*】\s*(\d{1,3})\s*%?/);
+  const scoreMatch = raw.match(/【\s*说服度\s*】\s*[：:]?\s*(\d{1,3})\s*(?:%|％|分)?/);
   const parsedScore = scoreMatch ? Number(scoreMatch[1]) : NaN;
   const currentScore = clampNumber(parsedScore, previousScore, config.scoreMin, config.scoreMax);
   const scoreDelta = clampInteger(currentScore - previousScore, config.minDelta, config.maxDelta, 0);
-  const reply = extractBracketSection(raw, "角色回应") || extractBracketSection(raw, "当前状态") || raw.slice(0, 260) || "我听见了。继续说。";
+  const reply = sanitizeConversationReply(
+    extractBracketSection(raw, "角色回应") || extractBracketSection(raw, "当前状态") || raw.slice(0, 260),
+  );
   const reason = extractBracketSection(raw, "原因") || "No scoring reason returned.";
   return {
     reply: reply.slice(0, 260),
@@ -1773,8 +1787,19 @@ function parseConversationCue(content, context = {}) {
   };
 }
 
+function sanitizeConversationReply(value) {
+  const text = String(value || "")
+    .replace(/```(?:json)?|```/g, "")
+    .replace(/^\s*[：:]\s*/, "")
+    .replace(/\[[^\]]*\b(?:score|delta|currentScore|scoreDelta)\b[^\]]*\]/gi, "")
+    .replace(/【\s*(?:说服度|当前状态|原因)\s*】[\s\S]*$/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text || "我听见了。继续说。";
+}
+
 function extractBracketSection(text, title) {
-  const pattern = new RegExp(`【\\s*${title}\\s*】\\s*([\\s\\S]*?)(?=\\n?【|$)`);
+  const pattern = new RegExp(`【\\s*${title}\\s*】\\s*[：:]?\\s*([\\s\\S]*?)(?=\\n?【|$)`);
   const match = String(text || "").match(pattern);
   return match ? match[1].trim() : "";
 }

@@ -55,13 +55,17 @@
               <textarea
                 id="voiceTextInput"
                 rows="2"
-                placeholder="说出或输入你的选择，例如：我想找火。"
+                placeholder="说出或输入你的回应。"
               ></textarea>
               <button id="voiceTextSendButton" type="button">发送</button>
             </div>
-            <span id="voiceStatus">等待输入。提到“火”进入场景2，提到“水”进入场景3。</span>
+            <span id="voiceStatus">等待输入。</span>
             <p id="voiceTranscript"></p>
             <p id="voiceReply"></p>
+            <details class="voice-debug final-voice-debug">
+              <summary>调试信息</summary>
+              <pre id="kimiResponseDebug">尚未收到返回。</pre>
+            </details>
           </section>
         </div>
 
@@ -111,7 +115,6 @@
         <span id="micLevelStatus"></span>
         <span id="micLevelBar"></span>
         <pre id="kimiRequestDebug"></pre>
-        <pre id="kimiResponseDebug"></pre>
         <p id="voiceCaptionPreview"></p>
         <select id="scriptBeatSelect"><option value="opening">opening</option></select>
         <input id="focalRange" type="range" min="0" max="100" value="50" />

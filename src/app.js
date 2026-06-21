@@ -55,10 +55,14 @@ const ui = {
   webmLoopToggle: document.querySelector("#webmLoopToggle"),
   ageRequiredToggle: document.querySelector("#ageRequiredToggle"),
   realtimeReplyToggle: document.querySelector("#realtimeReplyToggle"),
+  ttsEnabledToggle: document.querySelector("#ttsEnabledToggle"),
+  userSpeechSceneToggle: document.querySelector("#userSpeechSceneToggle"),
+  realtimeReplySceneToggle: document.querySelector("#realtimeReplySceneToggle"),
   sceneEndMode: document.querySelector("#sceneEndMode"),
   sceneNextSceneSelect: document.querySelector("#sceneNextSceneSelect"),
   flowVisibleSections: document.querySelectorAll("[data-flow-visible]"),
   flowRouteRows: document.querySelectorAll("[data-flow-route]"),
+  scoreRouteRows: document.querySelectorAll("[data-score-route]"),
   exportButton: document.querySelector("#exportButton"),
   deleteButton: document.querySelector("#deleteButton"),
   layerList: document.querySelector("#layerList"),
@@ -156,6 +160,9 @@ const state = {
   xfyunVoice: "x6_lingfeiyi_pro",
   ageRequired: false,
   realtimeReply: false,
+  ttsEnabled: true,
+  userSpeechScene: false,
+  realtimeReplyScene: false,
   userVariables: {},
   pendingAgeFlow: null,
   persuasionScore: 20,
@@ -181,6 +188,9 @@ const state = {
     minListenMs: 3000,
     listenStartedAt: 0,
     listenStopTimer: null,
+    silenceStopTimer: null,
+    silenceStopMs: 4000,
+    speechActive: false,
     manualStop: false,
     transcriptBuffer: "",
     interimTranscript: "",
@@ -226,7 +236,7 @@ const DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE = [
 
 const GENERIC_DIRECTOR_SYSTEM_PROMPT = "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue.";
 
-const DEFAULT_CONVERSATION_SCORING_STANDARD = '# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧';
+const DEFAULT_CONVERSATION_SCORING_STANDARD = '# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。只写角色真正说出口的话，不写动作、神态、心理、旁白或舞台指示。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧';
 
 const DEFAULT_CONVERSATION_CONFIG = {
   characterProfile: "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
@@ -442,6 +452,18 @@ function bindEvents() {
     state.realtimeReply = ui.realtimeReplyToggle.checked;
     scheduleSaveLayout();
   });
+    ui.ttsEnabledToggle?.addEventListener("change", () => {
+    state.ttsEnabled = ui.ttsEnabledToggle.checked;
+    scheduleSaveLayout();
+  });
+  ui.userSpeechSceneToggle?.addEventListener("change", () => {
+    state.userSpeechScene = ui.userSpeechSceneToggle.checked;
+    scheduleSaveLayout();
+  });
+  ui.realtimeReplySceneToggle?.addEventListener("change", () => {
+    state.realtimeReplyScene = ui.realtimeReplySceneToggle.checked;
+    scheduleSaveLayout();
+  });
   ui.sceneAudio?.addEventListener("ended", () => handleSceneMediaEnded());
   ui.sceneEndMode?.addEventListener("change", () => {
     state.sceneFlow.mode = ui.sceneEndMode.value;
@@ -462,6 +484,23 @@ function bindEvents() {
     });
     row.querySelector("[data-flow-scene]")?.addEventListener("change", () => {
       state.sceneFlow.routes = readSceneFlowRoutesFromControls();
+      renderSceneGroupStructure();
+      scheduleSaveLayout();
+    });
+  });
+  ui.scoreRouteRows.forEach((row) => {
+    row.querySelector("[data-score-min]")?.addEventListener("input", () => {
+      state.sceneFlow.scoreRoutes = readSceneScoreRoutesFromControls();
+      renderSceneGroupStructure();
+      scheduleSaveLayout();
+    });
+    row.querySelector("[data-score-max]")?.addEventListener("input", () => {
+      state.sceneFlow.scoreRoutes = readSceneScoreRoutesFromControls();
+      renderSceneGroupStructure();
+      scheduleSaveLayout();
+    });
+    row.querySelector("[data-score-scene]")?.addEventListener("change", () => {
+      state.sceneFlow.scoreRoutes = readSceneScoreRoutesFromControls();
       renderSceneGroupStructure();
       scheduleSaveLayout();
     });
@@ -718,7 +757,7 @@ function createReadyImageItem(asset, image) {
 }
 
 function createReadyVideoItem(asset, video) {
-  video.muted = true;
+  video.muted = shouldMuteVideoAsset(asset);
   video.loop = shouldLoopVideoAsset(asset);
   video.playsInline = true;
   video.preload = "auto";
@@ -731,7 +770,7 @@ function createReadyVideoItem(asset, video) {
 
 function hydrateVideoItem(asset, item) {
   const video = document.createElement("video");
-  video.muted = true;
+  video.muted = shouldMuteVideoAsset(asset);
   video.loop = shouldLoopVideoAsset(asset);
   video.playsInline = true;
   video.autoplay = false;
@@ -901,6 +940,10 @@ function isWebmVideoItem(item) {
 
 function isWebmLayerItem(item) {
   return item.assetType === "video/webm" || /\.webm(?:$|\?)/i.test(item.assetUrl || item.src || item.name || "");
+}
+
+function shouldMuteVideoAsset(asset, dataSpace = getSceneDataSpace()) {
+  return !(isWebmAsset(asset) && dataSpace === "conver");
 }
 
 function shouldLoopVideoAsset(asset) {
@@ -1080,8 +1123,11 @@ async function applySceneLayout(layout, sceneId, preloadedAssets = new Map()) {
   state.xfyunVoice = normalizeXfyunVoice(layout.scene?.xfyunVoice || layout.scene?.ttsVoice);
   state.ageRequired = Boolean(layout.scene?.ageRequired);
   state.realtimeReply = Boolean(layout.scene?.realtimeReply);
-  if (isConversationalEditor) {
-    const conversationConfig = getCurrentDirectorConfig().conversation;
+  state.ttsEnabled = layout.scene?.ttsEnabled !== false;
+  state.userSpeechScene = Boolean(layout.scene?.userSpeechScene);
+  state.realtimeReplyScene = Boolean(layout.scene?.realtimeReplyScene);
+  if (isConversationalEditor && state.persuasionRound === 0 && !state.voice.conversation.length) {
+    const conversationConfig = getCurrentConversationConfig();
     state.persuasionScore = conversationConfig.initialScore;
     state.persuasionRound = 0;
     state.userVariables.currentScore = state.persuasionScore;
@@ -1444,6 +1490,37 @@ function getCurrentDirectorConfig() {
   return normalizeDirectorConfig(getCurrentDirectorSceneGroup().directorConfig);
 }
 
+function getCurrentDirectorConfigForConversation() {
+  const config = getCurrentDirectorConfig();
+  return {
+    ...config,
+    conversation: getCurrentConversationConfig(config.conversation),
+  };
+}
+
+function getCurrentConversationConfig(baseConfig = getCurrentDirectorConfig().conversation) {
+  const config = normalizeConversationConfig(baseConfig);
+  if (!isConverDialogueRuntime()) return config;
+  return {
+    ...config,
+    maxRounds: getCurrentSceneGroupUserSpeechRoundCount(config.maxRounds),
+  };
+}
+
+function getCurrentSceneGroupUserSpeechRoundCount(fallback = 1) {
+  const group = getCurrentDirectorSceneGroup();
+  const dataSpace = group.dataSpace || getSceneDataSpace(group.finalStartSceneId);
+  const graph = buildSceneGroupGraph(group, { includeCurrent: true });
+  const count = graph.nodes.filter((sceneId) => isUserSpeechSceneInGroup(sceneId, dataSpace)).length;
+  return Math.max(1, count || fallback);
+}
+
+function isUserSpeechSceneInGroup(sceneId, dataSpace = "") {
+  if (sceneId === state.currentSceneId && (!dataSpace || dataSpace === getSceneDataSpace(sceneId))) return Boolean(state.userSpeechScene);
+  const scene = getSceneById(sceneId, dataSpace);
+  return Boolean(scene?.layout?.scene?.userSpeechScene);
+}
+
 function readDirectorConfigFromControls() {
   const current = normalizeDirectorConfig(getActiveSceneGroup().directorConfig);
   if (isConversationalEditor) {
@@ -1679,7 +1756,8 @@ function renderSceneGroupStructure() {
 }
 
 function buildSceneGroupGraph(group = getActiveSceneGroup(), { includeCurrent = true } = {}) {
-  const startSceneId = hasScene(group.finalStartSceneId) ? group.finalStartSceneId : state.currentSceneId || "default";
+  const dataSpace = group.dataSpace || getSceneDataSpace(group.finalStartSceneId);
+  const startSceneId = getSceneById(group.finalStartSceneId, dataSpace) ? group.finalStartSceneId : state.currentSceneId || "default";
   const nodes = [];
   const edges = [];
   const seen = new Set();
@@ -1689,7 +1767,7 @@ function buildSceneGroupGraph(group = getActiveSceneGroup(), { includeCurrent = 
     if (!sceneId || seen.has(sceneId)) continue;
     seen.add(sceneId);
     nodes.push(sceneId);
-    const flow = getSceneFlowForGraph(sceneId);
+    const flow = getSceneFlowForGraph(sceneId, dataSpace);
     const nextEdges = getSceneFlowEdges(sceneId, flow);
     nextEdges.forEach((edge) => {
       edges.push(edge);
@@ -1714,6 +1792,11 @@ function getSceneFlowEdges(sceneId, flow) {
     return flow.routes
       .filter((route) => route.sceneId)
       .map((route) => ({ from: sceneId, to: route.sceneId, label: route.keywords || "关键词" }));
+  }
+  if (flow.mode === "score") {
+    return flow.scoreRoutes
+      .filter((route) => route.sceneId)
+      .map((route) => ({ from: sceneId, to: route.sceneId, label: `${route.minScore}-${route.maxScore}分` }));
   }
   return [];
 }
@@ -1789,6 +1872,7 @@ function renderSceneFlowOptions() {
   const controls = [
     ui.sceneNextSceneSelect,
     ...[...ui.flowRouteRows].map((row) => row.querySelector("[data-flow-scene]")),
+    ...[...ui.scoreRouteRows].map((row) => row.querySelector("[data-score-scene]")),
   ].filter(Boolean);
   controls.forEach((select) => {
     populateSceneSelect(select, { selected: select.value, includeEmpty: true, emptyLabel: "不指定" });
@@ -1852,6 +1936,9 @@ function syncSceneFlowControls() {
   if (ui.sceneEndMode) ui.sceneEndMode.value = state.sceneFlow.mode || "none";
   if (ui.ageRequiredToggle) ui.ageRequiredToggle.checked = state.ageRequired;
   if (ui.realtimeReplyToggle) ui.realtimeReplyToggle.checked = state.realtimeReply;
+  if (ui.ttsEnabledToggle) ui.ttsEnabledToggle.checked = state.ttsEnabled;
+  if (ui.userSpeechSceneToggle) ui.userSpeechSceneToggle.checked = state.userSpeechScene;
+  if (ui.realtimeReplySceneToggle) ui.realtimeReplySceneToggle.checked = state.realtimeReplyScene;
   if (ui.sceneNextSceneSelect) ui.sceneNextSceneSelect.value = state.sceneFlow.nextSceneId || "";
   const flowMode = ui.sceneEndMode?.value || state.sceneFlow.mode || "none";
   ui.flowVisibleSections.forEach((element) => {
@@ -1862,6 +1949,15 @@ function syncSceneFlowControls() {
     const keywords = row.querySelector("[data-flow-keywords]");
     const scene = row.querySelector("[data-flow-scene]");
     if (keywords) keywords.value = route.keywords || "";
+    if (scene) scene.value = route.sceneId || "";
+  });
+  ui.scoreRouteRows.forEach((row, index) => {
+    const route = state.sceneFlow.scoreRoutes[index] || {};
+    const min = row.querySelector("[data-score-min]");
+    const max = row.querySelector("[data-score-max]");
+    const scene = row.querySelector("[data-score-scene]");
+    if (min) min.value = Number.isFinite(route.minScore) ? String(route.minScore) : "";
+    if (max) max.value = Number.isFinite(route.maxScore) ? String(route.maxScore) : "";
     if (scene) scene.value = route.sceneId || "";
   });
 }
@@ -1875,14 +1971,44 @@ function readSceneFlowRoutesFromControls() {
     .filter((route) => route.keywords || route.sceneId);
 }
 
+function readSceneScoreRoutesFromControls() {
+  return [...ui.scoreRouteRows]
+    .map((row) => {
+      const minText = row.querySelector("[data-score-min]")?.value.trim() || "";
+      const maxText = row.querySelector("[data-score-max]")?.value.trim() || "";
+      const sceneId = row.querySelector("[data-score-scene]")?.value || "";
+      return {
+        minScore: parseScoreRouteValue(minText, 0),
+        maxScore: parseScoreRouteValue(maxText, 100),
+        sceneId,
+        hasInput: Boolean(minText || maxText || sceneId),
+      };
+    })
+    .filter((route) => route.hasInput)
+    .map(({ minScore, maxScore, sceneId }) => ({ minScore, maxScore, sceneId }));
+}
+
+function parseScoreRouteValue(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(number)));
+}
+
 function normalizeSceneFlow(flow) {
-  const mode = ["none", "auto", "dialog"].includes(flow?.mode) ? flow.mode : "none";
+  const mode = ["none", "auto", "dialog", "score"].includes(flow?.mode) ? flow.mode : "none";
   return {
     mode,
     nextSceneId: String(flow?.nextSceneId || ""),
     routes: Array.isArray(flow?.routes)
       ? flow.routes.slice(0, 4).map((route) => ({
           keywords: String(route.keywords || ""),
+          sceneId: String(route.sceneId || ""),
+        }))
+      : [],
+    scoreRoutes: Array.isArray(flow?.scoreRoutes)
+      ? flow.scoreRoutes.slice(0, 4).map((route) => ({
+          minScore: parseScoreRouteValue(route.minScore, 0),
+          maxScore: parseScoreRouteValue(route.maxScore, 100),
           sceneId: String(route.sceneId || ""),
         }))
       : [],
@@ -1995,6 +2121,13 @@ function isSceneAudioFinished() {
   return Number.isFinite(duration) && duration > 0 && ui.sceneAudio.currentTime >= duration - 0.05;
 }
 
+function isConverDialogueRuntime() {
+  return isConversationalEditor || (isViewer && editorDataSpace === "conver") || (isFinal && getSceneDataSpace() === "conver");
+}
+
+function shouldHoldConverLoopingSceneForDialogue() {
+  return isConverDialogueRuntime() && state.webmLoop && (state.userSpeechScene || state.realtimeReplyScene);
+}
 function hasFiniteScenePlayback() {
   const hasFiniteAudio = Boolean(state.sceneAudioAsset && !state.audioLoop);
   const hasFiniteGif = !state.gifLoop && state.items.some((item) => item.mediaType === "gif");
@@ -2021,6 +2154,10 @@ function isScenePlaybackFinished() {
 
 async function handleSceneMediaEnded() {
   if (!(isViewer || isFinal || isIntroDemo) || state.sceneEnded || !isScenePlaybackFinished()) return;
+  if (shouldHoldConverLoopingSceneForDialogue()) {
+    setLayoutStatus(state.userSpeechScene ? "用户说话场景：等待语音或文字输入完成" : "实时回复场景：等待回复语音播放完成");
+    return;
+  }
   state.sceneEnded = true;
   if (state.pendingAgeFlow?.feedbackSceneId === state.currentSceneId) {
     setLayoutStatus("年龄反馈场景播放完毕，等待语音反馈完成");
@@ -2154,6 +2291,9 @@ function resetEditorToBlankScene(sceneId, sceneName) {
   state.webmLoop = true;
   state.ageRequired = false;
   state.realtimeReply = false;
+  state.ttsEnabled = true;
+  state.userSpeechScene = false;
+  state.realtimeReplyScene = false;
   state.sceneFlow = normalizeSceneFlow();
   state.sceneEnded = false;
   restartScenePlayback({ autoplay: false });
@@ -2463,7 +2603,7 @@ function preloadVideoAsset(asset) {
       if (video.videoWidth && video.videoHeight) done();
       else fail();
     }, 7000);
-    video.muted = true;
+    video.muted = shouldMuteVideoAsset(asset);
     video.loop = shouldLoopVideoAsset(asset);
     video.playsInline = true;
     video.preload = "auto";
@@ -2593,6 +2733,9 @@ function serializeLayout() {
       xfyunVoice: state.xfyunVoice,
       ageRequired: state.ageRequired,
       realtimeReply: state.realtimeReply,
+      ttsEnabled: state.ttsEnabled,
+      userSpeechScene: state.userSpeechScene,
+      realtimeReplyScene: state.realtimeReplyScene,
     },
     items: state.items
       .filter((item) => item.assetUrl || item.src)
@@ -3912,6 +4055,7 @@ function toggleVoiceListening() {
 
   if (state.voice.listening) {
     state.voice.manualStop = true;
+    clearVoiceSilenceStopTimer();
     clearTimeout(state.voice.listenStopTimer);
     state.voice.listenStopTimer = null;
     recognition.stop();
@@ -3927,14 +4071,12 @@ function toggleVoiceListening() {
     state.voice.listenStartedAt = Date.now();
     ui.voiceButton.classList.add("active");
     ui.voiceButton.textContent = "停止聆听";
-    ui.voiceTranscript.textContent = "正在听，请说话。至少会听 3 秒。";
+    ui.voiceTranscript.textContent = "正在听，请说话。说话结束 4 秒后会自动发送。";
     setVoiceStatus("正在聆听观众说话", "listening");
     startMicLevelMonitor();
+    clearVoiceSilenceStopTimer();
     clearTimeout(state.voice.listenStopTimer);
-    state.voice.listenStopTimer = setTimeout(() => {
-      if (!state.voice.listening || state.voice.manualStop) return;
-      recognition.stop();
-    }, state.voice.minListenMs);
+    state.voice.listenStopTimer = null;
     recognition.start();
   } catch (error) {
     state.voice.listening = false;
@@ -3944,6 +4086,21 @@ function toggleVoiceListening() {
   }
 }
 
+function clearVoiceSilenceStopTimer() {
+  clearTimeout(state.voice.silenceStopTimer);
+  state.voice.silenceStopTimer = null;
+}
+
+function scheduleVoiceSilenceStop() {
+  if (!state.voice.listening || state.voice.manualStop) return;
+  clearVoiceSilenceStopTimer();
+  state.voice.silenceStopTimer = setTimeout(() => {
+    if (!state.voice.listening || state.voice.manualStop) return;
+    try {
+      state.voice.recognition?.stop();
+    } catch {}
+  }, state.voice.silenceStopMs);
+}
 function getSpeechRecognition() {
   if (state.voice.recognition) return state.voice.recognition;
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -3969,7 +4126,10 @@ function getSpeechRecognition() {
       .filter(Boolean)
       .join(" ")
       .trim();
-    if (displayText) ui.voiceTranscript.textContent = displayText;
+    if (displayText) {
+      ui.voiceTranscript.textContent = displayText;
+      if (!state.voice.speechActive) scheduleVoiceSilenceStop();
+    }
   });
 
   recognition.addEventListener("audiostart", () => {
@@ -3977,11 +4137,24 @@ function getSpeechRecognition() {
   });
 
   recognition.addEventListener("soundstart", () => {
+    state.voice.speechActive = true;
+    clearVoiceSilenceStopTimer();
     setVoiceStatus("检测到声音，正在识别文字", "listening");
   });
 
   recognition.addEventListener("speechstart", () => {
+    state.voice.speechActive = true;
+    clearVoiceSilenceStopTimer();
     setVoiceStatus("检测到语音，正在转文字", "listening");
+  });
+
+  recognition.addEventListener("speechend", () => {
+    state.voice.speechActive = false;
+    scheduleVoiceSilenceStop();
+  });
+  recognition.addEventListener("soundend", () => {
+    state.voice.speechActive = false;
+    scheduleVoiceSilenceStop();
   });
 
   recognition.addEventListener("nomatch", () => {
@@ -4048,6 +4221,10 @@ function finalizeVoiceListening() {
 
 async function handleAudienceSpeech(text) {
   if (state.voice.busy) return;
+  if (isConversationalEditor || (isViewer && editorDataSpace === "conver") || (isFinal && getSceneDataSpace() === "conver")) {
+    await handlePersuasionSpeech(text);
+    return;
+  }
   if (isFinal) {
     state.voice.busy = true;
     state.voice.listening = false;
@@ -4140,6 +4317,8 @@ async function handleAudienceSpeech(text) {
 
 
 async function handlePersuasionSpeech(text) {
+  state.voice.sttCompleted = true;
+  state.voice.sttCompletedAt = performance.now();
   state.voice.busy = true;
   state.voice.listening = false;
   ui.voiceButton.classList.remove("active");
@@ -4148,17 +4327,17 @@ async function handlePersuasionSpeech(text) {
   try {
     if (!state.realtimeReply) {
       const fallback = makeLocalConversationCue(text);
-      applyConversationCue(fallback, text);
+      await applyConversationCue(fallback, text);
       setVoiceStatus("Realtime Kimi is off; local placeholder score used", "warn");
       return;
     }
     const cue = await getConversationCue(text);
-    applyConversationCue(cue, text);
-    const config = getCurrentDirectorConfig().conversation;
-    setVoiceStatus(`Persuasion ${state.persuasionScore}/${config.scoreMax}, round ${state.persuasionRound}/${config.maxRounds}`);
+    await applyConversationCue(cue, text);
+    const config = getCurrentConversationConfig();
+    setVoiceStatus(`说服度 ${state.persuasionScore}/${config.scoreMax}，第 ${state.persuasionRound}/${config.maxRounds} 轮`);
   } catch (error) {
     const fallback = makeLocalConversationCue(text);
-    applyConversationCue(fallback, text);
+    await applyConversationCue(fallback, text);
     setVoiceStatus(error.message || "Kimi unavailable; local placeholder score used", "error");
   } finally {
     state.voice.busy = false;
@@ -4167,8 +4346,8 @@ async function handlePersuasionSpeech(text) {
   }
 }
 
-function applyConversationCue(cue, userText) {
-  const config = getCurrentDirectorConfig().conversation;
+async function applyConversationCue(cue, userText) {
+  const config = getCurrentConversationConfig();
   const reply = cue.reply || "我听见了。继续说。";
   const score = clampInteger(cue.currentScore, config.scoreMin, config.scoreMax, state.persuasionScore);
   const delta = clampInteger(cue.scoreDelta, config.minDelta, config.maxDelta, 0);
@@ -4176,16 +4355,52 @@ function applyConversationCue(cue, userText) {
   state.persuasionRound = Math.min(config.maxRounds, state.persuasionRound + 1);
   state.userVariables.currentScore = state.persuasionScore;
   state.userVariables.roundIndex = state.persuasionRound;
-  ui.voiceReply.textContent = cue.rawEvaluation || `${reply}\nPersuasion: ${state.persuasionScore}/${config.scoreMax} (${delta >= 0 ? "+" : ""}${delta})`;
+  if (ui.voiceReply) ui.voiceReply.textContent = isFinal ? "回应已生成" : reply;
+  if (cue.rawEvaluation && ui.kimiResponseDebug) ui.kimiResponseDebug.textContent = cue.rawEvaluation;
   updateCaption(reply);
-  speakReply(reply);
   state.voice.conversation.push(
     { role: "user", content: userText },
-    { role: "assistant", content: `${reply} [score ${state.persuasionScore}, delta ${delta}]` },
+    { role: "assistant", content: reply },
   );
   state.voice.conversation = state.voice.conversation.slice(-10);
+  await playConverReplyAfterSceneJump(reply);
 }
 
+function getScoreRouteSceneId(score = state.persuasionScore, flow = state.sceneFlow) {
+  const routes = normalizeSceneFlow(flow).scoreRoutes;
+  const numericScore = clampInteger(score, 0, 100, state.persuasionScore);
+  const route = routes.find((item) => item.sceneId && numericScore >= item.minScore && numericScore <= item.maxScore);
+  return route?.sceneId || "";
+}
+
+function getConverFlowTargetSceneId(flow = state.sceneFlow, score = state.persuasionScore) {
+  const normalizedFlow = normalizeSceneFlow(flow);
+  if (normalizedFlow.mode === "auto") return normalizedFlow.nextSceneId || "";
+  if (normalizedFlow.mode === "score") return getScoreRouteSceneId(score, normalizedFlow);
+  return "";
+}
+
+async function playConverReplyAfterSceneJump(reply) {
+  if (!isConversationalEditor && !(isViewer && editorDataSpace === "conver") && !(isFinal && getSceneDataSpace() === "conver")) return;
+  if (!state.voice.sttCompleted) return;
+
+  const speakingSceneFlow = normalizeSceneFlow(state.sceneFlow);
+  const replySceneId = getConverFlowTargetSceneId(speakingSceneFlow, state.persuasionScore);
+  if (replySceneId && hasScene(replySceneId) && replySceneId !== state.currentSceneId) {
+    await switchScene(replySceneId);
+    updateCaption(reply);
+  }
+
+  const playback = state.ttsEnabled ? await speakReplyWithMeasuredAudio(reply) : { durationMs: 0 };
+  state.voice.lastReplyAudioDurationMs = Math.max(0, Number(playback?.durationMs || 0));
+  await delay(2000);
+
+  const replySceneFlow = normalizeSceneFlow(state.sceneFlow);
+  const nextSceneId = getConverFlowTargetSceneId(replySceneFlow, state.persuasionScore);
+  if (nextSceneId && hasScene(nextSceneId) && nextSceneId !== state.currentSceneId) {
+    await switchScene(nextSceneId);
+  }
+}
 async function getConversationCue(text) {
   const response = await fetch("/api/conversation-cue", {
     method: "POST",
@@ -4201,7 +4416,7 @@ async function getConversationCue(text) {
       },
       currentScore: state.persuasionScore,
       roundIndex: state.persuasionRound + 1,
-      directorConfig: getCurrentDirectorConfig(),
+      directorConfig: getCurrentDirectorConfigForConversation(),
     }),
   });
   if (!response.ok) {
@@ -4214,13 +4429,13 @@ async function getConversationCue(text) {
 }
 
 function makeLocalConversationCue(text) {
-  const config = getCurrentDirectorConfig().conversation;
+  const config = getCurrentConversationConfig();
   const scoreDelta = Math.max(config.minDelta, Math.min(config.maxDelta, text.length > 12 ? 4 : 0));
   return {
-    reply: "I will consider what you said, but I need stronger reasons.",
+    reply: "我听见了你的想法，但这些理由还不够让我真正安心。你能不能再说得具体一点？",
     scoreDelta,
     currentScore: Math.min(config.scoreMax, Math.max(config.scoreMin, state.persuasionScore + scoreDelta)),
-    reason: "Local fallback scoring.",
+    reason: "本地兜底评分：Kimi 超时或暂时不可用。",
   };
 }
 async function getDirectorCue(text, overrides = {}) {
@@ -4542,10 +4757,22 @@ function selectItemByDepth(mode) {
 }
 
 function updateCaption(text) {
-  if (ui.voiceCaptionPreview) ui.voiceCaptionPreview.textContent = text;
+  const caption = formatCaptionText(text);
+  if (ui.voiceCaptionPreview) ui.voiceCaptionPreview.textContent = caption;
   if (!ui.stageSubtitle) return;
-  ui.stageSubtitle.textContent = text;
-  ui.stageSubtitle.classList.toggle("visible", Boolean(text));
+  ui.stageSubtitle.textContent = caption;
+  ui.stageSubtitle.classList.toggle("visible", Boolean(caption));
+}
+
+function formatCaptionText(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+  const quoted = [...raw.matchAll(/[“"]([^“”"]+)[”"]/g)]
+    .map((match) => match[1].trim())
+    .filter(Boolean);
+  if (quoted.length > 1) return quoted.join("\n");
+  if (quoted.length === 1 && raw.replace(/[“”"]/g, "").trim() === quoted[0]) return quoted[0];
+  return raw.replace(/\n\s*(?=[“"])/g, "\n").replace(/[“”"]/g, "").trim();
 }
 
 function normalizeXfyunVoice(value) {
@@ -4559,6 +4786,65 @@ function normalizeXfyunVoice(value) {
   return allowed.has(value) ? value : "x6_lingfeiyi_pro";
 }
 
+function speakReplyWithMeasuredAudio(text) {
+  const promise = playXfyunTtsFileWithDuration(text).catch((error) => {
+    setVoiceStatus(`讯飞语音合成失败：${error.message}`, "error");
+    return { durationMs: 0 };
+  });
+  state.activeTts = promise;
+  return promise;
+}
+
+async function playXfyunTtsFileWithDuration(text) {
+  if (!text) return { durationMs: 0 };
+  setVoiceStatus("正在生成语音文件", "thinking");
+  const response = await fetch("/api/tts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, voice: state.xfyunVoice }),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message || payload.error || response.statusText);
+  }
+  const blob = await response.blob();
+  const audioUrl = URL.createObjectURL(blob);
+  const audio = new Audio(audioUrl);
+  try {
+    await waitForAudioMetadata(audio);
+    const durationMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : 0;
+    setVoiceStatus(durationMs ? `语音时长 ${(durationMs / 1000).toFixed(1)} 秒，正在播放` : "正在播放语音", "thinking");
+    await audio.play();
+    await waitForAudioFinished(audio);
+    return { durationMs };
+  } finally {
+    URL.revokeObjectURL(audioUrl);
+  }
+}
+
+function waitForAudioMetadata(audio) {
+  if (Number.isFinite(audio.duration) && audio.duration > 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      audio.removeEventListener("loadedmetadata", done);
+      audio.removeEventListener("durationchange", done);
+      audio.removeEventListener("error", done);
+      resolve();
+    };
+    audio.addEventListener("loadedmetadata", done, { once: true });
+    audio.addEventListener("durationchange", done, { once: true });
+    audio.addEventListener("error", done, { once: true });
+    audio.load?.();
+  });
+}
+
+function waitForAudioFinished(audio) {
+  if (audio.ended) return Promise.resolve();
+  return new Promise((resolve) => {
+    audio.addEventListener("ended", resolve, { once: true });
+    audio.addEventListener("error", resolve, { once: true });
+  });
+}
 function speakReply(text) {
   const promise = playXfyunTts(text).catch((error) => {
     setVoiceStatus(`讯飞语音合成失败：${error.message}`, "error");

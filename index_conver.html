@@ -132,37 +132,53 @@
                   <span>调用实时回复</span>
                   <input id="realtimeReplyToggle" type="checkbox" />
                 </label>
+                <label class="switch-row">
+                  <span>调用语音生成</span>
+                  <input id="ttsEnabledToggle" type="checkbox" checked />
+                </label>
+                <label class="switch-row">
+                  <span>用户说话场景</span>
+                  <input id="userSpeechSceneToggle" type="checkbox" />
+                </label>
+                <label class="switch-row">
+                  <span>实时回复场景</span>
+                  <input id="realtimeReplySceneToggle" type="checkbox" />
+                </label>
                 <label>
-                  <span>场景结束后</span>
+                  <span>对话完成后</span>
                   <select id="sceneEndMode">
-                    <option value="none">不自动跳转</option>
-                    <option value="auto">直接进入下一场景</option>
-                    <option value="dialog">等待对话关键词</option>
+                    <option value="none">停留当前场景</option>
+                    <option value="auto">进入下一轮对话场景</option>
+                    <option value="score">按说服度分数跳转</option>
                   </select>
                 </label>
                 <label data-flow-visible="auto" hidden>
-                  <span>下一场景</span>
+                  <span>下一轮对话场景</span>
                   <select id="sceneNextSceneSelect">
                     <option value="">不指定</option>
                   </select>
                 </label>
-                <div class="scene-flow-routes" data-flow-visible="dialog" hidden>
-                  <span class="scene-flow-title">关键词跳转</span>
-                  <div class="scene-flow-route" data-flow-route>
-                    <input data-flow-keywords type="text" placeholder="关键词，如：火、点燃" />
-                    <select data-flow-scene><option value="">不指定</option></select>
+                <div class="scene-flow-routes" data-flow-visible="score" hidden>
+                  <span class="scene-flow-title">说服度分支</span>
+                  <div class="scene-flow-route" data-score-route>
+                    <input data-score-min type="number" min="0" max="100" placeholder="起始分" />
+                    <input data-score-max type="number" min="0" max="100" placeholder="结束分" />
+                    <select data-score-scene><option value="">不指定</option></select>
                   </div>
-                  <div class="scene-flow-route" data-flow-route>
-                    <input data-flow-keywords type="text" placeholder="关键词，如：水、喝" />
-                    <select data-flow-scene><option value="">不指定</option></select>
+                  <div class="scene-flow-route" data-score-route>
+                    <input data-score-min type="number" min="0" max="100" placeholder="起始分" />
+                    <input data-score-max type="number" min="0" max="100" placeholder="结束分" />
+                    <select data-score-scene><option value="">不指定</option></select>
                   </div>
-                  <div class="scene-flow-route" data-flow-route>
-                    <input data-flow-keywords type="text" placeholder="关键词" />
-                    <select data-flow-scene><option value="">不指定</option></select>
+                  <div class="scene-flow-route" data-score-route>
+                    <input data-score-min type="number" min="0" max="100" placeholder="起始分" />
+                    <input data-score-max type="number" min="0" max="100" placeholder="结束分" />
+                    <select data-score-scene><option value="">不指定</option></select>
                   </div>
-                  <div class="scene-flow-route" data-flow-route>
-                    <input data-flow-keywords type="text" placeholder="关键词" />
-                    <select data-flow-scene><option value="">不指定</option></select>
+                  <div class="scene-flow-route" data-score-route>
+                    <input data-score-min type="number" min="0" max="100" placeholder="起始分" />
+                    <input data-score-max type="number" min="0" max="100" placeholder="结束分" />
+                    <select data-score-scene><option value="">不指定</option></select>
                   </div>
                 </div>
               </div>
