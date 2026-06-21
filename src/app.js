@@ -108,6 +108,10 @@ const ui = {
   finalIntroModal: document.querySelector("#finalIntroModal"),
   finalIntroClose: document.querySelector("#finalIntroClose"),
   finalIntroPrimary: document.querySelector("#finalIntroPrimary"),
+  finalPreloadOverlay: document.querySelector("#finalPreloadOverlay"),
+  finalPreloadTitle: document.querySelector("#finalPreloadTitle"),
+  finalPreloadBar: document.querySelector("#finalPreloadBar"),
+  finalPreloadStatus: document.querySelector("#finalPreloadStatus"),
   values: {
     focalRange: document.querySelector("#focalValue"),
     parallaxRange: document.querySelector("#parallaxValue"),
@@ -147,6 +151,12 @@ const state = {
   referenceSceneGroups: [],
   finalGroupPreviewCache: new Map(),
   finalGroupRailTimer: null,
+  finalPreload: {
+    groupId: "",
+    status: "idle",
+    promise: null,
+    token: 0,
+  },
   activeSceneGroupId: urlParams.get("group") || "default-group",
   finalSceneGroupId: urlParams.get("group") || "default-group",
   finalStartSceneId: "default",
@@ -529,7 +539,7 @@ function bindEvents() {
       sendManualVoiceText();
     }
   });
-  ui.playPauseButton?.addEventListener("click", togglePlayback);
+  ui.playPauseButton?.addEventListener("click", handlePlayPauseClick);
   ui.persuadeChoiceButton?.addEventListener("click", () => chooseFinalConverPath("persuade"));
   ui.abandonChoiceButton?.addEventListener("click", () => chooseFinalConverPath("abandon"));
   ui.finalIntroClose?.addEventListener("click", closeFinalIntroModal);
@@ -2366,6 +2376,7 @@ async function switchFinalSceneGroup(groupId) {
   if (!hasSceneGroup(groupId)) return;
   state.finalSceneGroupId = groupId;
   state.finalStartSceneId = getFinalSceneGroup().finalStartSceneId || "default";
+  resetFinalPreloadState();
   resetFinalConverChoiceState();
   renderSceneGroupOptions();
   renderSceneGroupStructure();
@@ -3423,6 +3434,198 @@ function resumeGifElement(element) {
   element.src = src;
 }
 
+async function handlePlayPauseClick() {
+  if (isFinal && state.paused && !isIntroDemo) {
+    if (state.finalPreload.status === "loading") return;
+    const ready = await ensureFinalSceneGroupPreloaded();
+    if (!ready) return;
+  }
+  togglePlayback();
+}
+
+async function ensureFinalSceneGroupPreloaded() {
+  const group = getFinalSceneGroup();
+  const groupId = group?.id || state.finalSceneGroupId || "default-group";
+  if (state.finalPreload.groupId === groupId && state.finalPreload.status === "ready") return true;
+  if (state.finalPreload.groupId === groupId && state.finalPreload.promise) {
+    await state.finalPreload.promise;
+    return state.finalPreload.status === "ready";
+  }
+
+  const token = state.finalPreload.token + 1;
+  state.finalPreload = {
+    groupId,
+    status: "loading",
+    promise: null,
+    token,
+  };
+  const promise = preloadFinalSceneGroupWebmAssets(group, token);
+  state.finalPreload.promise = promise;
+  await promise;
+  return state.finalPreload.groupId === groupId && state.finalPreload.status === "ready";
+}
+
+async function preloadFinalSceneGroupWebmAssets(group, token) {
+  showFinalPreloadOverlay({ title: "正在加载视频素材", detail: "正在整理场景素材", percent: 0 });
+  try {
+    const urls = await collectFinalSceneGroupWebmUrls(group, token);
+    if (token !== state.finalPreload.token) return;
+    if (!urls.length) {
+      updateFinalPreloadOverlay({ detail: "当前场景组没有 WebM 素材", percent: 100 });
+      await delay(180);
+      markFinalPreloadReady(group?.id);
+      hideFinalPreloadOverlay();
+      return;
+    }
+
+    await preloadWebmUrlsWithProgress(urls, token);
+    if (token !== state.finalPreload.token) return;
+    markFinalPreloadReady(group?.id);
+    updateFinalPreloadOverlay({ detail: "视频素材已加载完成", percent: 100 });
+    await delay(220);
+    hideFinalPreloadOverlay();
+  } catch (error) {
+    console.warn("[final preload] 场景组素材预加载失败：", error);
+    if (token !== state.finalPreload.token) return;
+    state.finalPreload.status = "failed";
+    updateFinalPreloadOverlay({ detail: "视频预加载失败，请稍后重试", percent: 0 });
+    setLayoutStatus("视频预加载失败，请稍后重试", "warn");
+  }
+}
+
+function markFinalPreloadReady(groupId) {
+  state.finalPreload.groupId = groupId || state.finalSceneGroupId || "default-group";
+  state.finalPreload.status = "ready";
+  state.finalPreload.promise = null;
+}
+
+function resetFinalPreloadState() {
+  if (!isFinal) return;
+  state.finalPreload.token += 1;
+  state.finalPreload.groupId = "";
+  state.finalPreload.status = "idle";
+  state.finalPreload.promise = null;
+  hideFinalPreloadOverlay();
+}
+
+async function collectFinalSceneGroupWebmUrls(group, token) {
+  const urls = new Set();
+  const layouts = await fetchFinalSceneGroupLayouts(group, token);
+  layouts.forEach((layout) => {
+    (Array.isArray(layout?.items) ? layout.items : []).forEach((record) => {
+      const asset = assetFromLayoutRecord(record);
+      if (asset.url && isVideoAsset(asset) && isWebmAsset(asset)) urls.add(asset.url);
+    });
+  });
+  return [...urls];
+}
+
+async function fetchFinalSceneGroupLayouts(group, token) {
+  const dataSpace = group?.dataSpace || getSceneDataSpace(group?.finalStartSceneId);
+  const startSceneId = group?.finalStartSceneId || state.currentSceneId || "default";
+  const layouts = [];
+  const seen = new Set();
+  const queued = [startSceneId].filter(Boolean);
+
+  while (queued.length && layouts.length < 80) {
+    if (token !== state.finalPreload.token) return layouts;
+    const sceneId = queued.shift();
+    if (!sceneId || seen.has(sceneId)) continue;
+    seen.add(sceneId);
+    updateFinalPreloadOverlay({ detail: `正在扫描场景 ${layouts.length + 1}`, percent: 0 });
+    const layout = sceneId === state.currentSceneId ? serializeLayout() : await fetchSceneLayout(sceneId, dataSpace);
+    if (!layout) continue;
+    layouts.push(layout);
+    getSceneFlowEdges(sceneId, normalizeSceneFlow(layout.scene?.flow || layout.scene?.sceneFlow)).forEach((edge) => {
+      if (edge.to && !seen.has(edge.to)) queued.push(edge.to);
+    });
+  }
+  return layouts;
+}
+
+async function preloadWebmUrlsWithProgress(urls, token) {
+  const entries = urls.map((url) => ({ url, loaded: 0, total: 0, done: false, failed: false }));
+  let nextIndex = 0;
+  const concurrency = Math.min(4, Math.max(1, entries.length));
+
+  const update = () => {
+    const knownTotal = entries.reduce((sum, entry) => sum + entry.total, 0);
+    const knownLoaded = entries.reduce((sum, entry) => sum + Math.min(entry.loaded, entry.total || entry.loaded), 0);
+    const completed = entries.filter((entry) => entry.done || entry.failed).length;
+    const percent = knownTotal > 0 ? Math.round((knownLoaded / knownTotal) * 100) : Math.round((completed / entries.length) * 100);
+    const failed = entries.filter((entry) => entry.failed).length;
+    const suffix = failed ? `，${failed} 个素材未能完整预载` : "";
+    updateFinalPreloadOverlay({ detail: `已加载 ${completed}/${entries.length}${suffix}`, percent });
+  };
+
+  update();
+  const worker = async () => {
+    while (nextIndex < entries.length) {
+      if (token !== state.finalPreload.token) return;
+      const entry = entries[nextIndex++];
+      try {
+        await preloadWebmUrl(entry, update);
+        entry.done = true;
+      } catch (error) {
+        console.warn(`[final preload] ${entry.url} 加载失败：`, error);
+        entry.failed = true;
+      }
+      update();
+    }
+  };
+
+  await Promise.all(Array.from({ length: concurrency }, worker));
+}
+
+async function preloadWebmUrl(entry, onProgress) {
+  try {
+    await fetchAndCacheAsset(entry, onProgress);
+  } catch (error) {
+    await preloadVideoAsset({ url: entry.url, name: decodeURIComponent(entry.url.split("/").pop() || "video.webm"), type: "video/webm" });
+  }
+}
+
+async function fetchAndCacheAsset(entry, onProgress) {
+  const response = await fetch(entry.url, { cache: "force-cache" });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  entry.total = Number(response.headers.get("content-length")) || 0;
+  if (!response.body) {
+    const buffer = await response.arrayBuffer();
+    entry.loaded = buffer.byteLength || entry.total || 1;
+    entry.total = entry.total || entry.loaded;
+    onProgress();
+    return;
+  }
+
+  const reader = response.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    entry.loaded += value?.byteLength || 0;
+    if (!entry.total) entry.total = entry.loaded;
+    onProgress();
+  }
+  entry.total = Math.max(entry.total, entry.loaded);
+}
+
+function showFinalPreloadOverlay({ title, detail, percent }) {
+  if (!ui.finalPreloadOverlay) return;
+  ui.finalPreloadOverlay.hidden = false;
+  updateFinalPreloadOverlay({ title, detail, percent });
+}
+
+function hideFinalPreloadOverlay() {
+  if (ui.finalPreloadOverlay) ui.finalPreloadOverlay.hidden = true;
+}
+
+function updateFinalPreloadOverlay({ title, detail, percent } = {}) {
+  const value = clamp(Math.round(Number(percent) || 0), 0, 100);
+  if (title && ui.finalPreloadTitle) ui.finalPreloadTitle.textContent = title;
+  if (detail && ui.finalPreloadStatus) ui.finalPreloadStatus.textContent = detail;
+  if (ui.finalPreloadBar) ui.finalPreloadBar.style.width = `${value}%`;
+  const progress = ui.finalPreloadOverlay?.querySelector(".final-preload-bar");
+  progress?.setAttribute("aria-valuenow", String(value));
+}
 function togglePlayback() {
   if (shouldPromptFinalConverChoice()) {
     showFinalConverChoicePanel();
@@ -5201,3 +5404,5 @@ function formatDuration(ms) {
   if (value < 1000) return `${Math.round(value)}ms`;
   return `${(value / 1000).toFixed(1)}s`;
 }
+
+
