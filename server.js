@@ -42,6 +42,20 @@ const DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE = [
 
 const GENERIC_DIRECTOR_SYSTEM_PROMPT = "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue. Output only the spoken line, no JSON and no Markdown.";
 
+const DEFAULT_CONVERSATION_SCORING_STANDARD = '# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧';
+
+const DEFAULT_CONVERSATION_CONFIG = {
+  characterProfile: "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
+  conversationRequirement: "用户作为主人公，需要在指定轮次内说服谷雨重新考虑返校或继续升学。回应必须符合谷雨的处境和性格，不要替用户下结论。",
+  scoringRubric: DEFAULT_CONVERSATION_SCORING_STANDARD,
+  maxRounds: 5,
+  initialScore: 20,
+  scoreMin: 0,
+  scoreMax: 100,
+  minDelta: -100,
+  maxDelta: 100,
+};
+
 const dataDir = path.join(rootDir, "data");
 const uploadsDir = path.join(rootDir, "uploads");
 const dbPath = path.join(dataDir, "scene-layout-db.json");
@@ -136,6 +150,11 @@ async function handleRequest(request, response) {
 
     if (url.pathname === "/api/director-cue") {
       await handleDirectorCue(request, response);
+      return;
+    }
+
+    if (url.pathname === "/api/conversation-cue") {
+      await handleConversationCue(request, response);
       return;
     }
 
@@ -419,6 +438,81 @@ async function handleDirectorCue(request, response) {
   });
 }
 
+async function handleConversationCue(request, response) {
+  const requestStartedAt = Date.now();
+  if (request.method !== "POST") {
+    sendJson(response, 405, { error: "method_not_allowed" });
+    return;
+  }
+
+  if (!moonshotApiKey) {
+    sendJson(response, 503, {
+      error: "missing_api_key",
+      message: "Server missing MOONSHOT_API_KEY.",
+    });
+    return;
+  }
+
+  const body = await readJsonBody(request, 32 * 1024);
+  const text = typeof body.text === "string" ? body.text.trim().slice(0, 1200) : "";
+  if (!text) {
+    sendJson(response, 400, { error: "invalid_request", message: "text is required." });
+    return;
+  }
+
+  const conversation = sanitizeConversation(body.conversation);
+  const scene = normalizeDirectorScene(body.scene);
+  const variables = normalizeDirectorVariables(body.variables);
+  const directorConfig = normalizeDirectorConfig(body.directorConfig);
+  const conversationConfig = normalizeConversationConfig(directorConfig.conversation);
+  const currentScore = clampNumber(body.currentScore ?? variables.currentScore, conversationConfig.initialScore, conversationConfig.scoreMin, conversationConfig.scoreMax);
+  const roundIndex = clampInteger(body.roundIndex, 1, 99, 1);
+  const messages = buildConversationMessages(text, conversation, {
+    scene,
+    variables,
+    directorConfig,
+    conversationConfig,
+    currentScore,
+    roundIndex,
+  });
+
+  const maxTokens = Math.max(kimiMaxTokens, 520);
+  log("info", "moonshot_conversation_request", { model: kimiModel, scene: scene.id, roundIndex });
+  const { response: upstreamResponse, payload: upstreamPayload, timing } = await requestMoonshot(messages, maxTokens);
+  if (!upstreamResponse.ok) {
+    log("error", "moonshot_conversation_error", { status: upstreamResponse.status, ms: Date.now() - requestStartedAt });
+    sendJson(response, upstreamResponse.status, {
+      error: "moonshot_request_failed",
+      message: upstreamPayload.error?.message || upstreamResponse.statusText,
+      timing: { ...timing, totalMs: Date.now() - requestStartedAt },
+    });
+    return;
+  }
+
+  const content = upstreamPayload.choices?.[0]?.message?.content || "";
+  const cue = parseConversationCue(content, { currentScore, conversationConfig });
+  sendJson(response, 200, {
+    cue,
+    debug: {
+      request: {
+        url: `${moonshotBaseUrl}/chat/completions`,
+        model: kimiModel,
+        timeoutMs: kimiTimeoutMs,
+        maxTokens,
+        scene,
+        variables,
+        currentScore,
+        roundIndex,
+        conversationConfig,
+        messages,
+      },
+      response: upstreamPayload,
+      rawContent: content,
+      extractedReply: cue.reply,
+      timing: { ...timing, totalMs: Date.now() - requestStartedAt },
+    },
+  });
+}
 async function handleTts(request, response) {
   if (request.method !== "POST") {
     sendJson(response, 405, { error: "method_not_allowed" });
@@ -592,13 +686,13 @@ function synthesizeXfyunTtsToStream(text, voice, writeStream) {
   });
 }
 
-async function requestMoonshot(messages) {
+async function requestMoonshot(messages, maxTokens = kimiMaxTokens) {
   const startedAt = Date.now();
   const attempts = [
     {
       model: kimiModel,
       messages,
-      max_completion_tokens: kimiMaxTokens,
+      max_completion_tokens: maxTokens,
       thinking: { type: "disabled" },
     },
   ];
@@ -658,7 +752,7 @@ async function requestMoonshot(messages) {
       attempts.push({
         model: kimiModel,
         messages,
-        max_completion_tokens: kimiMaxTokens,
+        max_completion_tokens: maxTokens,
       });
       continue;
     }
@@ -1062,6 +1156,7 @@ function normalizeSceneGroups(groups, layouts, fallbackStartSceneId) {
         id,
         name: sanitizeSceneGroupName(group?.name || (id === "default-group" ? "默认场景组" : id)),
         finalStartSceneId: layouts[startSceneId] ? startSceneId : fallbackStartSceneId,
+        finalSelectable: group?.finalSelectable !== false,
         coverAsset: normalizeSceneGroupCoverAsset(group?.coverAsset),
         directorConfig: normalizeDirectorConfig(group?.directorConfig),
       };
@@ -1624,6 +1719,92 @@ function normalizeDirectorBeats(value) {
   );
 }
 
+
+function buildConversationMessages(text, conversation, context = {}) {
+  const scene = context.scene || {};
+  const variables = context.variables || {};
+  const config = normalizeConversationConfig(context.conversationConfig);
+  const currentScore = clampNumber(context.currentScore, config.initialScore, config.scoreMin, config.scoreMax);
+  const roundIndex = clampInteger(context.roundIndex, 1, 99, 1);
+  const systemPrompt = [
+    "你正在控制一个影视作品人物，用户是正在与该人物对话的主人公。",
+    "你必须先以该人物身份自然回应用户，然后根据给定的说服度评价标准给出当前总说服度。",
+    "不要判断剧情成功、失败或跳转；最终走向由前端在完成指定轮次后根据 currentScore 判断。",
+    `本轮开始前说服度：${currentScore}%。分数范围：${config.scoreMin}-${config.scoreMax}。`,
+    `当前轮次：${roundIndex}。配置轮次上限：${config.maxRounds}。`,
+    `场景 ID：${scene.id || ""}。变量：${JSON.stringify(variables || {})}`,
+    "\n【对话对象设定】",
+    config.characterProfile,
+    "\n【用户对话任务】",
+    config.conversationRequirement,
+    "\n【说服度评价标准】",
+    config.scoringRubric,
+    "\n输出必须使用上述评价标准中的自然语言格式。必须包含：",
+    "【角色回应】、【说服度】、【当前状态】、【原因】。",
+    "【说服度】必须是 0-100 的百分比数字，例如：【说服度】72%。",
+  ].join("\n");
+  const userPrompt = [
+    `用户最新发言：${text}`,
+    "请以角色身份回应，并按照说服度评价标准输出当前评分。",
+  ].join("\n");
+  return [
+    { role: "system", content: systemPrompt },
+    ...conversation,
+    { role: "user", content: userPrompt },
+  ];
+}
+
+function parseConversationCue(content, context = {}) {
+  const config = normalizeConversationConfig(context.conversationConfig);
+  const previousScore = clampNumber(context.currentScore, config.initialScore, config.scoreMin, config.scoreMax);
+  const raw = String(content || "").replace(/```(?:json)?|```/g, "").trim();
+  const scoreMatch = raw.match(/【\s*说服度\s*】\s*(\d{1,3})\s*%?/);
+  const parsedScore = scoreMatch ? Number(scoreMatch[1]) : NaN;
+  const currentScore = clampNumber(parsedScore, previousScore, config.scoreMin, config.scoreMax);
+  const scoreDelta = clampInteger(currentScore - previousScore, config.minDelta, config.maxDelta, 0);
+  const reply = extractBracketSection(raw, "角色回应") || extractBracketSection(raw, "当前状态") || raw.slice(0, 260) || "我听见了。继续说。";
+  const reason = extractBracketSection(raw, "原因") || "No scoring reason returned.";
+  return {
+    reply: reply.slice(0, 260),
+    scoreDelta,
+    currentScore,
+    reason: reason.slice(0, 800),
+    rawEvaluation: raw.slice(0, 3000),
+  };
+}
+
+function extractBracketSection(text, title) {
+  const pattern = new RegExp(`【\\s*${title}\\s*】\\s*([\\s\\S]*?)(?=\\n?【|$)`);
+  const match = String(text || "").match(pattern);
+  return match ? match[1].trim() : "";
+}
+
+function normalizeConversationConfig(value = {}) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    characterProfile: String(source.characterProfile || DEFAULT_CONVERSATION_CONFIG.characterProfile).slice(0, 8000),
+    conversationRequirement: String(source.conversationRequirement || DEFAULT_CONVERSATION_CONFIG.conversationRequirement).slice(0, 4000),
+    scoringRubric: String(source.scoringRubric || DEFAULT_CONVERSATION_CONFIG.scoringRubric).slice(0, 12000),
+    maxRounds: clampInteger(source.maxRounds, 1, 99, DEFAULT_CONVERSATION_CONFIG.maxRounds),
+    initialScore: clampInteger(source.initialScore, 0, 100, DEFAULT_CONVERSATION_CONFIG.initialScore),
+    scoreMin: clampInteger(source.scoreMin, 0, 100, DEFAULT_CONVERSATION_CONFIG.scoreMin),
+    scoreMax: clampInteger(source.scoreMax, 1, 100, DEFAULT_CONVERSATION_CONFIG.scoreMax),
+    minDelta: clampInteger(source.minDelta, -100, 100, DEFAULT_CONVERSATION_CONFIG.minDelta),
+    maxDelta: clampInteger(source.maxDelta, -100, 100, DEFAULT_CONVERSATION_CONFIG.maxDelta),
+  };
+}
+
+function clampInteger(value, min, max, fallback) {
+  const number = Math.round(Number(value));
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function clampNumber(value, fallback, min, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return Math.min(max, Math.max(min, fallback));
+  return Math.min(max, Math.max(min, number));
+}
 function normalizeDirectorConfig(config) {
   const source = config && typeof config === "object" && !Array.isArray(config) ? config : {};
   return {
@@ -1634,6 +1815,7 @@ function normalizeDirectorConfig(config) {
     fallbackReplies: normalizeStringMap(source.fallbackReplies, 1000),
     beats: normalizeDirectorBeats(source.beats),
     replyValidation: source.replyValidation === "island-age" ? "island-age" : "none",
+    conversation: normalizeConversationConfig(source.conversation),
   };
 }
 

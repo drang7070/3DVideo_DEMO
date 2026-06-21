@@ -6,7 +6,9 @@ const isEditor = appMode === "editor" || appMode === "conver-editor";
 const isConversationalEditor = appMode === "conver-editor";
 const isViewer = appMode === "viewer";
 const isFinal = appMode === "final";
-const editorDataSpace = isConversationalEditor ? "conver" : "index";
+const isMergedFinal = isFinal && !urlParams.has("intro");
+const requestedDataSpace = urlParams.get("space") === "conver" ? "conver" : "index";
+const editorDataSpace = isConversationalEditor ? "conver" : isEditor ? "index" : requestedDataSpace;
 const referenceDataSpace = isEditor ? (isConversationalEditor ? "index" : "conver") : "";
 const isIntroDemo = appMode === "intro-demo";
 const isIntroEmbed = (isFinal && urlParams.get("intro") === "1") || isIntroDemo;
@@ -29,6 +31,7 @@ const ui = {
   deleteSceneGroupButton: document.querySelector("#deleteSceneGroupButton"),
   sceneGroupCoverInput: document.querySelector("#sceneGroupCoverInput"),
   sceneGroupCoverName: document.querySelector("#sceneGroupCoverName"),
+  finalSceneGroupVisibleToggle: document.querySelector("#finalSceneGroupVisibleToggle"),
   sceneGroupPromptInput: document.querySelector("#sceneGroupPromptInput"),
   sceneGroupUserPromptInput: document.querySelector("#sceneGroupUserPromptInput"),
   sceneGroupSceneInstructionsInput: document.querySelector("#sceneGroupSceneInstructionsInput"),
@@ -155,6 +158,8 @@ const state = {
   realtimeReply: false,
   userVariables: {},
   pendingAgeFlow: null,
+  persuasionScore: 20,
+  persuasionRound: 0,
   activeTts: null,
   gifState: new Map(), // id → { element, player, pauseFrame }
   scenePlaybackToken: 0,
@@ -220,6 +225,20 @@ const DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE = [
 ].join("\n");
 
 const GENERIC_DIRECTOR_SYSTEM_PROMPT = "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue.";
+
+const DEFAULT_CONVERSATION_SCORING_STANDARD = '# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧';
+
+const DEFAULT_CONVERSATION_CONFIG = {
+  characterProfile: "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
+  conversationRequirement: "用户作为主人公，需要在指定轮次内说服谷雨重新考虑返校或继续升学。回应必须符合谷雨的处境和性格，不要替用户下结论。",
+  scoringRubric: DEFAULT_CONVERSATION_SCORING_STANDARD,
+  maxRounds: 5,
+  initialScore: 20,
+  scoreMin: 0,
+  scoreMax: 100,
+  minDelta: -100,
+  maxDelta: 100,
+};
 
 const rangeConfigs = {
   focalRange: { stateKey: "focal", min: 520, max: 1300 },
@@ -376,6 +395,12 @@ function bindEvents() {
       await saveAppSettings();
     });
   });
+  ui.finalSceneGroupVisibleToggle?.addEventListener("change", async () => {
+    updateActiveSceneGroup({ finalSelectable: ui.finalSceneGroupVisibleToggle.checked });
+    renderSceneGroupOptions();
+    await saveAppSettings();
+  });
+
   ui.sceneGroupCoverInput?.addEventListener("change", async (event) => {
     const [file] = event.target.files || [];
     if (!file || !isSupportedImageFile(file)) return;
@@ -1032,8 +1057,8 @@ async function loadSceneById(sceneId) {
   return applySceneLayout(layout, sceneId);
 }
 
-async function fetchSceneLayout(sceneId) {
-  const response = await fetch(dataSpaceUrl(`/api/layout?id=${encodeURIComponent(sceneId)}`));
+async function fetchSceneLayout(sceneId, space = getSceneDataSpace(sceneId)) {
+  const response = await fetch(dataSpaceUrl(`/api/layout?id=${encodeURIComponent(sceneId)}`, space));
   if (!response.ok) return null;
   return response.json();
 }
@@ -1055,6 +1080,13 @@ async function applySceneLayout(layout, sceneId, preloadedAssets = new Map()) {
   state.xfyunVoice = normalizeXfyunVoice(layout.scene?.xfyunVoice || layout.scene?.ttsVoice);
   state.ageRequired = Boolean(layout.scene?.ageRequired);
   state.realtimeReply = Boolean(layout.scene?.realtimeReply);
+  if (isConversationalEditor) {
+    const conversationConfig = getCurrentDirectorConfig().conversation;
+    state.persuasionScore = conversationConfig.initialScore;
+    state.persuasionRound = 0;
+    state.userVariables.currentScore = state.persuasionScore;
+    state.userVariables.roundIndex = state.persuasionRound;
+  }
   state.sceneEnded = false;
   ui.focalRange.value = String(valueToRange("focalRange", state.focal));
   ui.parallaxRange.value = String(valueToRange("parallaxRange", state.parallax));
@@ -1085,22 +1117,36 @@ async function applySceneLayout(layout, sceneId, preloadedAssets = new Map()) {
 
 async function loadSceneList() {
   if (!ui.sceneSelect) return;
-  const response = await fetch(dataSpaceUrl("/api/layout?list=1&details=1"));
-  if (!response.ok) return;
-  const payload = await response.json();
-  state.scenes = Array.isArray(payload.scenes) ? payload.scenes : [];
+  if (isMergedFinal) {
+    const results = await Promise.all(["index", "conver"].map(async (space) => {
+      const response = await fetch(dataSpaceUrl("/api/layout?list=1&details=1", space));
+      if (!response.ok) return [];
+      const payload = await response.json();
+      return (Array.isArray(payload.scenes) ? payload.scenes : []).map((scene) => ({ ...scene, dataSpace: space }));
+    }));
+    state.scenes = results.flat();
+  } else {
+    const response = await fetch(dataSpaceUrl("/api/layout?list=1&details=1"));
+    if (!response.ok) return;
+    const payload = await response.json();
+    state.scenes = (Array.isArray(payload.scenes) ? payload.scenes : []).map((scene) => ({ ...scene, dataSpace: editorDataSpace }));
+  }
   if (!state.scenes.some((scene) => scene.id === state.currentSceneId)) {
     state.scenes.push({
       id: state.currentSceneId,
       name: state.currentSceneId === "default" ? "默认场景" : state.currentSceneId,
       updatedAt: "",
+      dataSpace: editorDataSpace,
     });
   }
   renderSceneOptions();
 }
-
 async function loadAppSettings() {
   try {
+    if (isMergedFinal) {
+      await loadMergedFinalSettings();
+      return;
+    }
     const response = await fetch(dataSpaceUrl("/api/settings"));
     if (!response.ok) return;
     const payload = await response.json();
@@ -1125,7 +1171,42 @@ async function loadAppSettings() {
   } catch {}
 }
 
+async function loadMergedFinalSettings() {
+  const results = await Promise.all(["index", "conver"].map(async (space) => {
+    const response = await fetch(dataSpaceUrl("/api/settings", space));
+    if (!response.ok) return null;
+    const payload = await response.json();
+    return { space, settings: normalizeAppSettings(payload.settings) };
+  }));
+  const groups = [];
+  results.filter(Boolean).forEach(({ space, settings }) => {
+    settings.sceneGroups.filter((group) => group.finalSelectable !== false).forEach((group) => {
+      groups.push({
+        ...group,
+        id: `${space}:${group.id}`,
+        originalId: group.id,
+        dataSpace: space,
+        sourceLabel: space === "conver" ? "index_conver" : "index",
+      });
+    });
+  });
+  state.sceneGroups = groups;
+  const requestedGroup = urlParams.get("group") || "";
+  const resolvedGroup = resolveMergedFinalGroupId(requestedGroup) || state.sceneGroups[0]?.id || "";
+  state.finalSceneGroupId = resolvedGroup;
+  state.activeSceneGroupId = resolvedGroup;
+  state.finalStartSceneId = getFinalSceneGroup().finalStartSceneId || "default";
+  renderSceneGroupOptions();
+  renderFinalStartSceneOptions();
+}
 
+function resolveMergedFinalGroupId(groupId) {
+  if (!groupId) return "";
+  if (hasSceneGroup(groupId)) return groupId;
+  const preferred = `${requestedDataSpace}:${groupId}`;
+  if (hasSceneGroup(preferred)) return preferred;
+  return state.sceneGroups.find((group) => group.originalId === groupId)?.id || "";
+}
 async function loadReferenceSceneGroups() {
   state.referenceSceneGroups = [];
   if (!referenceDataSpace) return;
@@ -1198,6 +1279,7 @@ function normalizeSceneGroups(groups, fallbackStartSceneId = "default") {
         id,
         name: String(group?.name || (id === "default-group" ? "默认场景组" : id)).trim() || "默认场景组",
         finalStartSceneId,
+        finalSelectable: group?.finalSelectable !== false,
         coverAsset: normalizeSceneGroupCoverAsset(group?.coverAsset),
         directorConfig: normalizeDirectorConfig(group?.directorConfig),
       };
@@ -1230,6 +1312,13 @@ function normalizeSceneGroupCoverAsset(asset) {
   };
 }
 
+
+function getSceneDataSpace(sceneId = state.currentSceneId) {
+  if (isMergedFinal) {
+    return getFinalSceneGroup().dataSpace || "index";
+  }
+  return state.scenes.find((scene) => scene.id === sceneId)?.dataSpace || editorDataSpace;
+}
 function hasScene(sceneId) {
   return state.scenes.some((scene) => scene.id === sceneId);
 }
@@ -1256,6 +1345,10 @@ function getSceneGroupLabel(groupId) {
   return group?.name || groupId;
 }
 
+function getSceneGroupDisplayName(group) {
+  return group?.name || group?.id || "默认场景组";
+}
+
 function updateActiveSceneGroup(patch) {
   state.sceneGroups = state.sceneGroups.map((group) =>
     group.id === state.activeSceneGroupId ? { ...group, ...patch } : group,
@@ -1278,6 +1371,7 @@ function renderSceneGroupOptions() {
   populateSceneGroupSelect(ui.finalSceneGroupSelect, state.finalSceneGroupId);
   renderFinalSceneGroupCards();
   syncSceneGroupCoverControls();
+  syncSceneGroupFinalVisibilityControls();
   syncSceneGroupDirectorControls();
 }
 
@@ -1291,9 +1385,31 @@ function normalizeDirectorConfig(config = {}) {
     fallbackReplies: normalizeDirectorTextMap(source.fallbackReplies, 1000),
     beats: normalizeDirectorBeats(source.beats),
     replyValidation: source.replyValidation === "island-age" ? "island-age" : "none",
+    conversation: normalizeConversationConfig(source.conversation),
   };
 }
 
+
+function normalizeConversationConfig(value = {}) {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    characterProfile: String(source.characterProfile || DEFAULT_CONVERSATION_CONFIG.characterProfile).slice(0, 8000),
+    conversationRequirement: String(source.conversationRequirement || DEFAULT_CONVERSATION_CONFIG.conversationRequirement).slice(0, 4000),
+    scoringRubric: String(source.scoringRubric || DEFAULT_CONVERSATION_CONFIG.scoringRubric).slice(0, 12000),
+    maxRounds: clampInteger(source.maxRounds, 1, 99, DEFAULT_CONVERSATION_CONFIG.maxRounds),
+    initialScore: clampInteger(source.initialScore, 0, 100, DEFAULT_CONVERSATION_CONFIG.initialScore),
+    scoreMin: clampInteger(source.scoreMin, 0, 100, DEFAULT_CONVERSATION_CONFIG.scoreMin),
+    scoreMax: clampInteger(source.scoreMax, 1, 100, DEFAULT_CONVERSATION_CONFIG.scoreMax),
+    minDelta: clampInteger(source.minDelta, -100, 100, DEFAULT_CONVERSATION_CONFIG.minDelta),
+    maxDelta: clampInteger(source.maxDelta, -100, 100, DEFAULT_CONVERSATION_CONFIG.maxDelta),
+  };
+}
+
+function clampInteger(value, min, max, fallback) {
+  const number = Math.round(Number(value));
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
 function normalizeDirectorBeats(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const allowed = new Set(["opening", "choice", "reveal", "ending"]);
@@ -1330,6 +1446,18 @@ function getCurrentDirectorConfig() {
 
 function readDirectorConfigFromControls() {
   const current = normalizeDirectorConfig(getActiveSceneGroup().directorConfig);
+  if (isConversationalEditor) {
+    return normalizeDirectorConfig({
+      ...current,
+      conversation: {
+        ...current.conversation,
+        characterProfile: ui.sceneGroupPromptInput?.value || current.conversation.characterProfile,
+        conversationRequirement: ui.sceneGroupUserPromptInput?.value || current.conversation.conversationRequirement,
+        scoringRubric: ui.sceneGroupSceneInstructionsInput?.value || current.conversation.scoringRubric,
+      },
+    });
+  }
+
   let advanced = {};
   try {
     advanced = JSON.parse(ui.sceneGroupSceneInstructionsInput?.value || "{}");
@@ -1346,6 +1474,14 @@ function readDirectorConfigFromControls() {
 
 function syncSceneGroupDirectorControls() {
   const config = normalizeDirectorConfig(getActiveSceneGroup().directorConfig);
+  if (isConversationalEditor) {
+    if (ui.sceneGroupPromptInput) ui.sceneGroupPromptInput.value = config.conversation.characterProfile;
+    if (ui.sceneGroupUserPromptInput) ui.sceneGroupUserPromptInput.value = config.conversation.conversationRequirement;
+    if (ui.sceneGroupSceneInstructionsInput) {
+      ui.sceneGroupSceneInstructionsInput.value = config.conversation.scoringRubric;
+    }
+    return;
+  }
   if (ui.sceneGroupPromptInput) ui.sceneGroupPromptInput.value = config.systemPrompt;
   if (ui.sceneGroupUserPromptInput) ui.sceneGroupUserPromptInput.value = config.userPromptTemplate;
   if (ui.sceneGroupSceneInstructionsInput) {
@@ -1365,6 +1501,11 @@ function syncSceneGroupCoverControls() {
   ui.sceneGroupCoverName.classList.toggle("empty", !cover);
 }
 
+function syncSceneGroupFinalVisibilityControls() {
+  if (!ui.finalSceneGroupVisibleToggle) return;
+  ui.finalSceneGroupVisibleToggle.checked = getActiveSceneGroup().finalSelectable !== false;
+}
+
 function renderFinalStartSceneOptions() {
   if (!ui.finalStartSceneSelect) return;
   const selected = getActiveSceneGroup().finalStartSceneId || state.finalStartSceneId || ui.finalStartSceneSelect.value || "default";
@@ -1377,7 +1518,7 @@ function populateSceneGroupSelect(select, selected = "") {
   state.sceneGroups.forEach((group) => {
     const option = document.createElement("option");
     option.value = group.id;
-    option.textContent = group.name;
+    option.textContent = getSceneGroupDisplayName(group);
     fragment.append(option);
   });
   if (state.referenceSceneGroups.length) {
@@ -1413,7 +1554,7 @@ function renderFinalSceneGroupCards() {
     const copy = document.createElement("span");
     copy.className = "final-group-card-copy";
     const title = document.createElement("strong");
-    title.textContent = group.name;
+    title.textContent = getSceneGroupDisplayName(group);
     copy.append(title);
     card.append(image, copy);
     fragment.append(card);
@@ -1422,8 +1563,9 @@ function renderFinalSceneGroupCards() {
   hydrateFinalSceneGroupPreviews();
 }
 
-function getSceneById(sceneId) {
-  return state.scenes.find((scene) => scene.id === sceneId);
+function getSceneById(sceneId, dataSpace = "") {
+  return state.scenes.find((scene) => scene.id === sceneId && (!dataSpace || scene.dataSpace === dataSpace))
+    || state.scenes.find((scene) => scene.id === sceneId);
 }
 
 function getSceneGroupPreviewUrl(group) {
@@ -1431,7 +1573,7 @@ function getSceneGroupPreviewUrl(group) {
 }
 
 function makeSceneGroupPreviewPlaceholder(group) {
-  const scene = getSceneById(group.finalStartSceneId);
+  const scene = getSceneById(group.finalStartSceneId, group.dataSpace);
   const buffer = makePlaceholderMedia(group.name, scene ? getSceneLabel(scene.id) : "未设置首场景");
   return buffer.toDataURL("image/png");
 }
@@ -1452,7 +1594,7 @@ function hydrateFinalSceneGroupPreviews() {
 }
 
 async function renderSceneGroupPreview(group) {
-  const scene = getSceneById(group.finalStartSceneId);
+  const scene = getSceneById(group.finalStartSceneId, group.dataSpace);
   const layout = scene?.layout;
   if (!layout) return makeSceneGroupPreviewPlaceholder(group);
   const buffer = document.createElement("canvas");
@@ -1697,7 +1839,11 @@ function syncSceneControls() {
   syncSceneFlowControls();
   const demo = document.querySelector(".demo-link");
   if (demo) {
-    demo.href = `./viewer.html?scene=${encodeURIComponent(state.currentSceneId)}&group=${encodeURIComponent(state.activeSceneGroupId)}`;
+    demo.href = `./viewer.html?scene=${encodeURIComponent(state.currentSceneId)}&group=${encodeURIComponent(state.activeSceneGroupId)}&space=${encodeURIComponent(editorDataSpace)}`;
+  }
+  const finalDemo = document.querySelector(".final-demo-link");
+  if (finalDemo) {
+    finalDemo.href = `./final.html?group=${encodeURIComponent(`${editorDataSpace}:${state.activeSceneGroupId}`)}`;
   }
 }
 
@@ -1980,6 +2126,7 @@ async function createSceneGroup() {
     id: makeSceneGroupId(`${cleanName}-${Date.now().toString(36)}`),
     name: cleanName,
     finalStartSceneId: sceneId,
+    finalSelectable: true,
     directorConfig: inheritedDirectorConfig,
   };
   state.sceneGroups = [...state.sceneGroups, group];
@@ -2085,6 +2232,8 @@ function updateSceneUrl() {
   url.searchParams.set("scene", state.currentSceneId);
   const groupId = isFinal && !isIntroDemo ? state.finalSceneGroupId : state.activeSceneGroupId;
   if (groupId) url.searchParams.set("group", groupId);
+  if (editorDataSpace !== "index" && !isMergedFinal) url.searchParams.set("space", editorDataSpace);
+  else url.searchParams.delete("space");
   window.history.replaceState({}, "", url);
 }
 
@@ -3943,6 +4092,10 @@ async function handleAudienceSpeech(text) {
     }
     return;
   }
+  if (isConversationalEditor) {
+    await handlePersuasionSpeech(text);
+    return;
+  }
   state.voice.busy = true;
   state.voice.listening = false;
   ui.voiceButton.classList.remove("active");
@@ -3985,6 +4138,91 @@ async function handleAudienceSpeech(text) {
   }
 }
 
+
+async function handlePersuasionSpeech(text) {
+  state.voice.busy = true;
+  state.voice.listening = false;
+  ui.voiceButton.classList.remove("active");
+  ui.voiceButton.textContent = "Generating";
+  setVoiceStatus("Generating character reply and persuasion score", "thinking");
+  try {
+    if (!state.realtimeReply) {
+      const fallback = makeLocalConversationCue(text);
+      applyConversationCue(fallback, text);
+      setVoiceStatus("Realtime Kimi is off; local placeholder score used", "warn");
+      return;
+    }
+    const cue = await getConversationCue(text);
+    applyConversationCue(cue, text);
+    const config = getCurrentDirectorConfig().conversation;
+    setVoiceStatus(`Persuasion ${state.persuasionScore}/${config.scoreMax}, round ${state.persuasionRound}/${config.maxRounds}`);
+  } catch (error) {
+    const fallback = makeLocalConversationCue(text);
+    applyConversationCue(fallback, text);
+    setVoiceStatus(error.message || "Kimi unavailable; local placeholder score used", "error");
+  } finally {
+    state.voice.busy = false;
+    ui.voiceButton.textContent = "Start";
+    if (ui.voiceTextInput) ui.voiceTextInput.value = "";
+  }
+}
+
+function applyConversationCue(cue, userText) {
+  const config = getCurrentDirectorConfig().conversation;
+  const reply = cue.reply || "我听见了。继续说。";
+  const score = clampInteger(cue.currentScore, config.scoreMin, config.scoreMax, state.persuasionScore);
+  const delta = clampInteger(cue.scoreDelta, config.minDelta, config.maxDelta, 0);
+  state.persuasionScore = score;
+  state.persuasionRound = Math.min(config.maxRounds, state.persuasionRound + 1);
+  state.userVariables.currentScore = state.persuasionScore;
+  state.userVariables.roundIndex = state.persuasionRound;
+  ui.voiceReply.textContent = cue.rawEvaluation || `${reply}\nPersuasion: ${state.persuasionScore}/${config.scoreMax} (${delta >= 0 ? "+" : ""}${delta})`;
+  updateCaption(reply);
+  speakReply(reply);
+  state.voice.conversation.push(
+    { role: "user", content: userText },
+    { role: "assistant", content: `${reply} [score ${state.persuasionScore}, delta ${delta}]` },
+  );
+  state.voice.conversation = state.voice.conversation.slice(-10);
+}
+
+async function getConversationCue(text) {
+  const response = await fetch("/api/conversation-cue", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text,
+      conversation: state.voice.conversation.slice(-6),
+      scene: { id: state.currentSceneId, nextSceneId: state.sceneFlow.nextSceneId },
+      variables: {
+        ...state.userVariables,
+        currentScore: state.persuasionScore,
+        roundIndex: state.persuasionRound + 1,
+      },
+      currentScore: state.persuasionScore,
+      roundIndex: state.persuasionRound + 1,
+      directorConfig: getCurrentDirectorConfig(),
+    }),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message || payload.error || response.statusText);
+  }
+  const payload = await response.json();
+  renderKimiDebug(payload.debug);
+  return payload.cue || makeLocalConversationCue(text);
+}
+
+function makeLocalConversationCue(text) {
+  const config = getCurrentDirectorConfig().conversation;
+  const scoreDelta = Math.max(config.minDelta, Math.min(config.maxDelta, text.length > 12 ? 4 : 0));
+  return {
+    reply: "I will consider what you said, but I need stronger reasons.",
+    scoreDelta,
+    currentScore: Math.min(config.scoreMax, Math.max(config.scoreMin, state.persuasionScore + scoreDelta)),
+    reason: "Local fallback scoring.",
+  };
+}
 async function getDirectorCue(text, overrides = {}) {
   const clientStartedAt = performance.now();
   const scenePayload = {

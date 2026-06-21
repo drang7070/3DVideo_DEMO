@@ -886,6 +886,19 @@ input[type="checkbox"] {
   color: var(--muted);
 }
 
+.scene-group-final-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 6px 2px;
+  color: var(--text);
+}
+
+.scene-group-final-toggle span {
+  min-width: 0;
+}
+
 .scene-group-director-config {
   display: grid;
   gap: 6px;

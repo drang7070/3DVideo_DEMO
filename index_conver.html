@@ -52,17 +52,21 @@
                   <span>上传场景组封面</span>
                 </label>
                 <span id="sceneGroupCoverName" class="scene-audio-name empty">未设置封面</span>
-                <label class="scene-group-director-config">
-                  <span>Scene Group Kimi System Prompt</span>
-                  <textarea id="sceneGroupPromptInput" rows="8" spellcheck="false" placeholder="Role, persona, world, rules for this scene group"></textarea>
+                <label class="scene-group-final-toggle">
+                  <input id="finalSceneGroupVisibleToggle" type="checkbox" checked />
+                  <span>在 Final 页可选择</span>
                 </label>
                 <label class="scene-group-director-config">
-                  <span>Kimi User Message Template</span>
-                  <textarea id="sceneGroupUserPromptInput" rows="5" spellcheck="false" placeholder="Available: {{text}}, {{beatTitle}}, {{beatDirection}}, {{sceneInstruction}}, {{variablesJson}}"></textarea>
+                  <span>对话对象：人物背景与当前立场</span>
+                  <textarea id="sceneGroupPromptInput" rows="8" spellcheck="false" placeholder="填写影视作品、人物名称、人物背景、性格、价值观、弱点、禁忌、当前场景中的目标与态度"></textarea>
                 </label>
                 <label class="scene-group-director-config">
-                  <span>Scene Instruction JSON</span>
-                  <textarea id="sceneGroupSceneInstructionsInput" rows="7" spellcheck="false" placeholder="Configure sceneInstructions, fallbackReplies, replyValidation"></textarea>
+                  <span>用户对话任务要求</span>
+                  <textarea id="sceneGroupUserPromptInput" rows="5" spellcheck="false" placeholder="说明用户作为主人公需要说服对方做什么、对话语气限制、可使用的信息、不可触碰的禁忌"></textarea>
+                </label>
+                <label class="scene-group-director-config">
+                  <span>说服度评价标准</span>
+                  <textarea id="sceneGroupSceneInstructionsInput" rows="7" spellcheck="false" placeholder="粘贴自然语言评分标准与输出格式，例如“谷雨说服度评分机制”；不需要 JSON"></textarea>
                 </label>
                 <label>
                   <span>Final 演示场景组</span>
@@ -163,7 +167,8 @@
                 </div>
               </div>
 
-              <a class="demo-link" href="./viewer.html" target="_blank" rel="noreferrer">打开演示页</a>
+              <a class="demo-link" href="./viewer.html?space=conver" target="_blank" rel="noreferrer">打开演示页</a>
+              <a class="demo-link final-demo-link" href="./final.html" target="_blank" rel="noreferrer">打开最终页</a>
               <button id="exportButton" type="button">导出当前画面</button>
               <span id="layoutStatus">布局尚未保存</span>
             </div>

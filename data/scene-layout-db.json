@@ -3185,6 +3185,7 @@
         "id": "default-group",
         "name": "荒岛求生",
         "finalStartSceneId": "a1-mos899qj",
+        "finalSelectable": true,
         "coverAsset": {
           "key": "uploads/huandaoqiusheng.jpg",
           "name": "huandaoqiusheng.jpg",
@@ -3225,13 +3226,25 @@
               "direction": "造船或离岛阶段必须提到船只能载一个人。夏仁不解释太多，用现实压制观众。"
             }
           },
-          "replyValidation": "island-age"
+          "replyValidation": "island-age",
+          "conversation": {
+            "characterProfile": "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
+            "conversationRequirement": "用户作为主人公，需要在指定轮次内说服谷雨重新考虑返校或继续升学。回应必须符合谷雨的处境和性格，不要替用户下结论。",
+            "scoringRubric": "# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧",
+            "maxRounds": 5,
+            "initialScore": 20,
+            "scoreMin": 0,
+            "scoreMax": 100,
+            "minDelta": -100,
+            "maxDelta": 100
+          }
         }
       },
       {
         "id": "t1-mpjcb34r",
         "name": "《主角》易青娥初次登台-沉浸感体验",
         "finalStartSceneId": "t1-起始场景-mpjcb34r",
+        "finalSelectable": true,
         "coverAsset": {
           "key": "uploads/dengchang.jpg",
           "name": "dengchang.jpg",
@@ -3246,13 +3259,25 @@
           "sceneInstructions": {},
           "fallbackReplies": {},
           "beats": {},
-          "replyValidation": "none"
+          "replyValidation": "none",
+          "conversation": {
+            "characterProfile": "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
+            "conversationRequirement": "用户作为主人公，需要在指定轮次内说服谷雨重新考虑返校或继续升学。回应必须符合谷雨的处境和性格，不要替用户下结论。",
+            "scoringRubric": "# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧",
+            "maxRounds": 5,
+            "initialScore": 20,
+            "scoreMin": 0,
+            "scoreMax": 100,
+            "minDelta": -100,
+            "maxDelta": 100
+          }
         }
       },
       {
         "id": "快速体验沉浸式3d效果-mpjlrel8",
         "name": "快速体验沉浸式3D效果",
         "finalStartSceneId": "d1-h-场景体验-mpjusgbd",
+        "finalSelectable": true,
         "coverAsset": null,
         "directorConfig": {
           "version": 1,
@@ -3261,9 +3286,185 @@
           "sceneInstructions": {},
           "fallbackReplies": {},
           "beats": {},
-          "replyValidation": "none"
+          "replyValidation": "none",
+          "conversation": {
+            "characterProfile": "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
+            "conversationRequirement": "用户作为主人公，需要在指定轮次内说服谷雨重新考虑返校或继续升学。回应必须符合谷雨的处境和性格，不要替用户下结论。",
+            "scoringRubric": "# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧",
+            "maxRounds": 5,
+            "initialScore": 20,
+            "scoreMin": 0,
+            "scoreMax": 100,
+            "minDelta": -100,
+            "maxDelta": 100
+          }
         }
       }
     ]
+  },
+  "editorSpaces": {
+    "conver": {
+      "layouts": {
+        "default": {
+          "name": "默认场景",
+          "payload": {
+            "id": "default",
+            "name": "默认场景",
+            "scene": {},
+            "items": []
+          },
+          "updatedAt": "2026-06-20T17:51:41.139Z"
+        },
+        "对话测试场景-起始场景-mqmnnz10": {
+          "name": "张桂梅-开头",
+          "payload": {
+            "id": "对话测试场景-起始场景-mqmnnz10",
+            "name": "张桂梅-开头",
+            "scene": {
+              "focal": 860,
+              "parallax": 92,
+              "showGrid": true,
+              "audioAsset": null,
+              "audioLoop": true,
+              "gifLoop": true,
+              "webmLoop": true,
+              "flow": {
+                "mode": "none",
+                "nextSceneId": "",
+                "routes": []
+              },
+              "xfyunVoice": "x6_lingfeiyi_pro",
+              "ageRequired": false,
+              "realtimeReply": false
+            },
+            "items": [
+              {
+                "id": "fd4dbc22-188b-4462-92ca-19c803c4ae79",
+                "name": "开头.webm",
+                "assetKey": "uploads/开头.webm",
+                "assetUrl": "/uploads/开头.webm",
+                "assetType": "video/webm",
+                "x": 0,
+                "y": 0,
+                "z": 360,
+                "scale": 1.151,
+                "rotation": 0,
+                "tilt": 0,
+                "alpha": 1
+              }
+            ]
+          },
+          "updatedAt": "2026-06-21T05:20:32.630Z"
+        },
+        "张桂梅-开头-副本-mqncaogh": {
+          "name": "张桂梅-开头 副本",
+          "payload": {
+            "id": "张桂梅-开头-副本-mqncaogh",
+            "name": "张桂梅-开头 副本",
+            "scene": {
+              "focal": 860,
+              "parallax": 92,
+              "showGrid": true,
+              "audioAsset": null,
+              "audioLoop": true,
+              "gifLoop": true,
+              "webmLoop": true,
+              "flow": {
+                "mode": "none",
+                "nextSceneId": "",
+                "routes": []
+              },
+              "xfyunVoice": "x6_lingfeiyi_pro",
+              "ageRequired": false,
+              "realtimeReply": false
+            },
+            "items": [
+              {
+                "id": "fd4dbc22-188b-4462-92ca-19c803c4ae79",
+                "name": "开头.webm",
+                "assetKey": "uploads/开头.webm",
+                "assetUrl": "/uploads/开头.webm",
+                "assetType": "video/webm",
+                "x": 0,
+                "y": 0,
+                "z": 360,
+                "scale": 1.151,
+                "rotation": 0,
+                "tilt": 0,
+                "alpha": 1
+              }
+            ]
+          },
+          "updatedAt": "2026-06-21T05:25:47.446Z"
+        }
+      },
+      "settings": {
+        "finalStartSceneId": "default",
+        "activeSceneGroupId": "default-group",
+        "finalSceneGroupId": "default-group",
+        "sceneGroups": [
+          {
+            "id": "default-group",
+            "name": "默认场景组",
+            "finalStartSceneId": "default",
+            "finalSelectable": false,
+            "coverAsset": null,
+            "directorConfig": {
+              "version": 1,
+              "systemPrompt": "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue. Output only the spoken line, no JSON and no Markdown.",
+              "userPromptTemplate": "Current beat: {{beatTitle}}\nDirector intent: {{beatDirection}}\nCurrent scene: {{sceneId}}\nVariables: {{variablesJson}}\n{{sceneInstruction}}\nAudience says: {{text}}",
+              "sceneInstructions": {},
+              "fallbackReplies": {},
+              "beats": {},
+              "replyValidation": "none",
+              "conversation": {
+                "characterProfile": "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
+                "conversationRequirement": "用户作为主人公，需要在指定轮次内说服谷雨重新考虑返校或继续升学。回应必须符合谷雨的处境和性格，不要替用户下结论。",
+                "scoringRubric": "# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧",
+                "maxRounds": 5,
+                "initialScore": 20,
+                "scoreMin": 0,
+                "scoreMax": 100,
+                "minDelta": -100,
+                "maxDelta": 100
+              }
+            }
+          },
+          {
+            "id": "对话测试场景-mqmnnz10",
+            "name": "张桂梅",
+            "finalStartSceneId": "对话测试场景-起始场景-mqmnnz10",
+            "finalSelectable": true,
+            "coverAsset": {
+              "key": "uploads/29e430d8-c6fc-4e7e-b0d4-965095149caa.png",
+              "name": "29e430d8-c6fc-4e7e-b0d4-965095149caa.png",
+              "url": "/uploads/29e430d8-c6fc-4e7e-b0d4-965095149caa.png",
+              "type": "image/png",
+              "size": 912289
+            },
+            "directorConfig": {
+              "version": 1,
+              "systemPrompt": "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue. Output only the spoken line, no JSON and no Markdown.",
+              "userPromptTemplate": "Current beat: {{beatTitle}}\nDirector intent: {{beatDirection}}\nCurrent scene: {{sceneId}}\nVariables: {{variablesJson}}\n{{sceneInstruction}}\nAudience says: {{text}}",
+              "sceneInstructions": {},
+              "fallbackReplies": {},
+              "beats": {},
+              "replyValidation": "none",
+              "conversation": {
+                "characterProfile": "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
+                "conversationRequirement": "用户作为主人公，需要在指定轮次内说服谷雨重新考虑返校或继续升学。回应必须符合谷雨的处境和性格，不要替用户下结论。",
+                "scoringRubric": "# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧",
+                "maxRounds": 5,
+                "initialScore": 20,
+                "scoreMin": 0,
+                "scoreMax": 100,
+                "minDelta": -100,
+                "maxDelta": 100
+              }
+            }
+          }
+        ]
+      }
+    }
   }
 }
