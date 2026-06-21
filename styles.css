@@ -1872,6 +1872,21 @@ label strong {
   align-items: stretch;
 }
 
+.conver-choice-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.conver-choice-panel[hidden] {
+  display: none;
+}
+
+.conver-choice-panel button {
+  min-height: 38px;
+  padding: 0 10px;
+}
+
 .voice-round-button {
   min-width: 64px;
 }

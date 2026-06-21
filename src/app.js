@@ -1,4 +1,4 @@
-const canvas = document.querySelector("#stage");
+﻿const canvas = document.querySelector("#stage");
 const ctx = canvas.getContext("2d", { alpha: false });
 const urlParams = new URLSearchParams(window.location.search);
 const appMode = document.body.dataset.mode || "editor";
@@ -46,6 +46,7 @@ const ui = {
   sceneLogicToggle: document.querySelector("#sceneLogicToggle"),
   sceneNameInput: document.querySelector("#sceneNameInput"),
   finalStartSceneSelect: document.querySelector("#finalStartSceneSelect"),
+  defaultEndingSceneSelect: document.querySelector("#defaultEndingSceneSelect"),
   xfyunVoiceSelect: document.querySelector("#xfyunVoiceSelect"),
   sceneAudioInput: document.querySelector("#sceneAudioInput"),
   sceneAudioName: document.querySelector("#sceneAudioName"),
@@ -100,6 +101,9 @@ const ui = {
   layoutStatus: document.querySelector("#layoutStatus"),
   viewerStartButton: document.querySelector("#viewerStartButton"),
   playPauseButton: document.querySelector("#playPauseButton"),
+  converChoicePanel: document.querySelector("#converChoicePanel"),
+  persuadeChoiceButton: document.querySelector("#persuadeChoiceButton"),
+  abandonChoiceButton: document.querySelector("#abandonChoiceButton"),
   finalIntroModal: document.querySelector("#finalIntroModal"),
   finalIntroClose: document.querySelector("#finalIntroClose"),
   finalIntroPrimary: document.querySelector("#finalIntroPrimary"),
@@ -145,6 +149,9 @@ const state = {
   activeSceneGroupId: urlParams.get("group") || "default-group",
   finalSceneGroupId: urlParams.get("group") || "default-group",
   finalStartSceneId: "default",
+  finalConverChoice: "pending",
+  finalConverChoiceGroupId: "",
+  finalConverStartSceneId: "",
   scenes: [],
   loadingScene: true,
   sceneAudioAsset: null,
@@ -167,6 +174,7 @@ const state = {
   pendingAgeFlow: null,
   persuasionScore: 20,
   persuasionRound: 0,
+  lastConversationEvaluation: null,
   activeTts: null,
   gifState: new Map(), // id → { element, player, pauseFrame }
   scenePlaybackToken: 0,
@@ -385,6 +393,11 @@ function bindEvents() {
     renderSceneGroupStructure();
     await saveAppSettings();
   });
+  ui.defaultEndingSceneSelect?.addEventListener("change", async () => {
+    updateActiveSceneGroup({ defaultEndingSceneId: ui.defaultEndingSceneSelect.value || "" });
+    renderSceneGroupStructure();
+    await saveAppSettings();
+  });
   ui.xfyunVoiceSelect?.addEventListener("change", () => {
     state.xfyunVoice = normalizeXfyunVoice(ui.xfyunVoiceSelect.value);
     ui.xfyunVoiceSelect.value = state.xfyunVoice;
@@ -489,21 +502,15 @@ function bindEvents() {
     });
   });
   ui.scoreRouteRows.forEach((row) => {
-    row.querySelector("[data-score-min]")?.addEventListener("input", () => {
+    const handleScoreRouteInput = () => {
       state.sceneFlow.scoreRoutes = readSceneScoreRoutesFromControls();
       renderSceneGroupStructure();
       scheduleSaveLayout();
-    });
-    row.querySelector("[data-score-max]")?.addEventListener("input", () => {
-      state.sceneFlow.scoreRoutes = readSceneScoreRoutesFromControls();
-      renderSceneGroupStructure();
-      scheduleSaveLayout();
-    });
-    row.querySelector("[data-score-scene]")?.addEventListener("change", () => {
-      state.sceneFlow.scoreRoutes = readSceneScoreRoutesFromControls();
-      renderSceneGroupStructure();
-      scheduleSaveLayout();
-    });
+    };
+    row.querySelector("[data-score-min]")?.addEventListener("input", handleScoreRouteInput);
+    row.querySelector("[data-score-max]")?.addEventListener("input", handleScoreRouteInput);
+    row.querySelector("[data-score-scene]")?.addEventListener("change", handleScoreRouteInput);
+    row.querySelector("[data-score-subtitle]")?.addEventListener("input", handleScoreRouteInput);
   });
   on(ui.voiceButton, "click", toggleVoiceListening);
   ui.voiceTextSendButton?.addEventListener("click", () => sendManualVoiceText());
@@ -515,6 +522,8 @@ function bindEvents() {
     }
   });
   ui.playPauseButton?.addEventListener("click", togglePlayback);
+  ui.persuadeChoiceButton?.addEventListener("click", () => chooseFinalConverPath("persuade"));
+  ui.abandonChoiceButton?.addEventListener("click", () => chooseFinalConverPath("abandon"));
   ui.finalIntroClose?.addEventListener("click", closeFinalIntroModal);
   ui.finalIntroPrimary?.addEventListener("click", closeFinalIntroModal);
   ui.finalIntroModal?.addEventListener("click", (event) => {
@@ -1132,6 +1141,7 @@ async function applySceneLayout(layout, sceneId, preloadedAssets = new Map()) {
     state.persuasionRound = 0;
     state.userVariables.currentScore = state.persuasionScore;
     state.userVariables.roundIndex = state.persuasionRound;
+    state.lastConversationEvaluation = null;
   }
   state.sceneEnded = false;
   ui.focalRange.value = String(valueToRange("focalRange", state.focal));
@@ -1242,6 +1252,7 @@ async function loadMergedFinalSettings() {
   state.finalSceneGroupId = resolvedGroup;
   state.activeSceneGroupId = resolvedGroup;
   state.finalStartSceneId = getFinalSceneGroup().finalStartSceneId || "default";
+  resetFinalConverChoiceState();
   renderSceneGroupOptions();
   renderFinalStartSceneOptions();
 }
@@ -1325,6 +1336,7 @@ function normalizeSceneGroups(groups, fallbackStartSceneId = "default") {
         id,
         name: String(group?.name || (id === "default-group" ? "默认场景组" : id)).trim() || "默认场景组",
         finalStartSceneId,
+        defaultEndingSceneId: hasScene(group?.defaultEndingSceneId) ? group.defaultEndingSceneId : "",
         finalSelectable: group?.finalSelectable !== false,
         coverAsset: normalizeSceneGroupCoverAsset(group?.coverAsset),
         directorConfig: normalizeDirectorConfig(group?.directorConfig),
@@ -1378,6 +1390,7 @@ function getActiveSceneGroup() {
     id: "default-group",
     name: "默认场景组",
     finalStartSceneId: "default",
+    defaultEndingSceneId: "",
     directorConfig: normalizeDirectorConfig(),
   };
 }
@@ -1408,6 +1421,7 @@ function renderSceneOptions() {
   renderSceneGroupOptions();
   populateSceneSelect(ui.sceneSelect, { selected: state.currentSceneId });
   renderFinalStartSceneOptions();
+  renderDefaultEndingSceneOptions();
   renderSceneFlowOptions();
   renderSceneGroupStructure();
 }
@@ -1418,6 +1432,7 @@ function renderSceneGroupOptions() {
   renderFinalSceneGroupCards();
   syncSceneGroupCoverControls();
   syncSceneGroupFinalVisibilityControls();
+  renderDefaultEndingSceneOptions();
   syncSceneGroupDirectorControls();
 }
 
@@ -1587,6 +1602,12 @@ function renderFinalStartSceneOptions() {
   if (!ui.finalStartSceneSelect) return;
   const selected = getActiveSceneGroup().finalStartSceneId || state.finalStartSceneId || ui.finalStartSceneSelect.value || "default";
   populateSceneSelect(ui.finalStartSceneSelect, { selected: hasScene(selected) ? selected : "default" });
+}
+
+function renderDefaultEndingSceneOptions() {
+  if (!ui.defaultEndingSceneSelect) return;
+  const selected = getActiveSceneGroup().defaultEndingSceneId || "";
+  populateSceneSelect(ui.defaultEndingSceneSelect, { selected: hasScene(selected) ? selected : "", includeEmpty: true, emptyLabel: "不指定" });
 }
 
 function populateSceneGroupSelect(select, selected = "") {
@@ -1956,9 +1977,11 @@ function syncSceneFlowControls() {
     const min = row.querySelector("[data-score-min]");
     const max = row.querySelector("[data-score-max]");
     const scene = row.querySelector("[data-score-scene]");
+    const subtitle = row.querySelector("[data-score-subtitle]");
     if (min) min.value = Number.isFinite(route.minScore) ? String(route.minScore) : "";
     if (max) max.value = Number.isFinite(route.maxScore) ? String(route.maxScore) : "";
     if (scene) scene.value = route.sceneId || "";
+    if (subtitle) subtitle.value = route.subtitle || "";
   });
 }
 
@@ -1977,15 +2000,17 @@ function readSceneScoreRoutesFromControls() {
       const minText = row.querySelector("[data-score-min]")?.value.trim() || "";
       const maxText = row.querySelector("[data-score-max]")?.value.trim() || "";
       const sceneId = row.querySelector("[data-score-scene]")?.value || "";
+      const subtitle = row.querySelector("[data-score-subtitle]")?.value.trim() || "";
       return {
         minScore: parseScoreRouteValue(minText, 0),
         maxScore: parseScoreRouteValue(maxText, 100),
         sceneId,
-        hasInput: Boolean(minText || maxText || sceneId),
+        subtitle,
+        hasInput: Boolean(minText || maxText || sceneId || subtitle),
       };
     })
     .filter((route) => route.hasInput)
-    .map(({ minScore, maxScore, sceneId }) => ({ minScore, maxScore, sceneId }));
+    .map(({ minScore, maxScore, sceneId, subtitle }) => ({ minScore, maxScore, sceneId, subtitle }));
 }
 
 function parseScoreRouteValue(value, fallback) {
@@ -2010,6 +2035,7 @@ function normalizeSceneFlow(flow) {
           minScore: parseScoreRouteValue(route.minScore, 0),
           maxScore: parseScoreRouteValue(route.maxScore, 100),
           sceneId: String(route.sceneId || ""),
+          subtitle: String(route.subtitle || "").slice(0, 500),
         }))
       : [],
   };
@@ -2125,6 +2151,48 @@ function isConverDialogueRuntime() {
   return isConversationalEditor || (isViewer && editorDataSpace === "conver") || (isFinal && getSceneDataSpace() === "conver");
 }
 
+function isFinalConverSceneGroup() {
+  return isFinal && !isIntroDemo && getFinalSceneGroup().dataSpace === "conver";
+}
+
+function resetFinalConverChoiceState() {
+  state.finalConverChoice = isFinalConverSceneGroup() ? "pending" : "disabled";
+  state.finalConverChoiceGroupId = state.finalSceneGroupId || "";
+  state.finalConverStartSceneId = getFinalSceneGroup().finalStartSceneId || "default";
+  hideFinalConverChoicePanel();
+}
+
+function shouldPromptFinalConverChoice() {
+  return isFinalConverSceneGroup()
+    && state.finalConverChoice === "pending"
+    && state.currentSceneId === (getFinalSceneGroup().finalStartSceneId || "default");
+}
+
+function showFinalConverChoicePanel() {
+  if (ui.converChoicePanel) ui.converChoicePanel.hidden = false;
+  setVoiceStatus("请选择是否进入劝说流程");
+}
+
+function hideFinalConverChoicePanel() {
+  if (ui.converChoicePanel) ui.converChoicePanel.hidden = true;
+}
+
+function chooseFinalConverPath(choice) {
+  state.finalConverChoice = choice === "abandon" ? "abandon" : "persuade";
+  hideFinalConverChoicePanel();
+  setVoiceStatus(state.finalConverChoice === "abandon" ? "已选择放弃劝说" : "已选择进入劝说流程");
+  if (state.paused) togglePlayback();
+}
+
+function shouldJumpToDefaultEndingAfterAbandon() {
+  const group = getFinalSceneGroup();
+  return isFinalConverSceneGroup()
+    && state.finalConverChoice === "abandon"
+    && state.currentSceneId === (group.finalStartSceneId || "default")
+    && Boolean(group.defaultEndingSceneId)
+    && hasScene(group.defaultEndingSceneId);
+}
+
 function shouldHoldConverLoopingSceneForDialogue() {
   return isConverDialogueRuntime() && state.webmLoop && (state.userSpeechScene || state.realtimeReplyScene);
 }
@@ -2154,6 +2222,12 @@ function isScenePlaybackFinished() {
 
 async function handleSceneMediaEnded() {
   if (!(isViewer || isFinal || isIntroDemo) || state.sceneEnded || !isScenePlaybackFinished()) return;
+  if (shouldJumpToDefaultEndingAfterAbandon()) {
+    state.sceneEnded = true;
+    setLayoutStatus("已放弃劝说，进入默认结局");
+    await switchScene(getFinalSceneGroup().defaultEndingSceneId);
+    return;
+  }
   if (shouldHoldConverLoopingSceneForDialogue()) {
     setLayoutStatus(state.userSpeechScene ? "用户说话场景：等待语音或文字输入完成" : "实时回复场景：等待回复语音播放完成");
     return;
@@ -2246,6 +2320,7 @@ async function switchFinalSceneGroup(groupId) {
   if (!hasSceneGroup(groupId)) return;
   state.finalSceneGroupId = groupId;
   state.finalStartSceneId = getFinalSceneGroup().finalStartSceneId || "default";
+  resetFinalConverChoiceState();
   renderSceneGroupOptions();
   renderSceneGroupStructure();
   updateSceneUrl();
@@ -2263,6 +2338,7 @@ async function createSceneGroup() {
     id: makeSceneGroupId(`${cleanName}-${Date.now().toString(36)}`),
     name: cleanName,
     finalStartSceneId: sceneId,
+    defaultEndingSceneId: "",
     finalSelectable: true,
     directorConfig: inheritedDirectorConfig,
   };
@@ -3293,6 +3369,10 @@ function resumeGifElement(element) {
 }
 
 function togglePlayback() {
+  if (shouldPromptFinalConverChoice()) {
+    showFinalConverChoicePanel();
+    return;
+  }
   const wasPaused = state.paused;
   state.paused = !state.paused;
   ui.playPauseButton?.classList.toggle("paused", state.paused);
@@ -3358,6 +3438,7 @@ function resetFinalPlaybackState() {
   ui.playPauseButton?.classList.add("paused");
   ui.playPauseButton?.classList.remove("playing");
   ui.playPauseButton?.setAttribute("aria-label", "鎾斁鐢婚潰");
+  resetFinalConverChoiceState();
   showFinalGroupRail();
 }
 
@@ -4322,13 +4403,13 @@ async function handlePersuasionSpeech(text) {
   state.voice.busy = true;
   state.voice.listening = false;
   ui.voiceButton.classList.remove("active");
-  ui.voiceButton.textContent = "Generating";
-  setVoiceStatus("Generating character reply and persuasion score", "thinking");
+  ui.voiceButton.textContent = "生成中";
+  setVoiceStatus("正在生成角色回复和说服度评分", "thinking");
   try {
     if (!state.realtimeReply) {
       const fallback = makeLocalConversationCue(text);
       await applyConversationCue(fallback, text);
-      setVoiceStatus("Realtime Kimi is off; local placeholder score used", "warn");
+      setVoiceStatus("实时 Kimi 未开启，已使用本地临时评分", "warn");
       return;
     }
     const cue = await getConversationCue(text);
@@ -4338,10 +4419,10 @@ async function handlePersuasionSpeech(text) {
   } catch (error) {
     const fallback = makeLocalConversationCue(text);
     await applyConversationCue(fallback, text);
-    setVoiceStatus(error.message || "Kimi unavailable; local placeholder score used", "error");
+    setVoiceStatus(error.message || "Kimi 暂时不可用，已使用本地临时评分", "error");
   } finally {
     state.voice.busy = false;
-    ui.voiceButton.textContent = "Start";
+    ui.voiceButton.textContent = "开始对话";
     if (ui.voiceTextInput) ui.voiceTextInput.value = "";
   }
 }
@@ -4349,46 +4430,80 @@ async function handlePersuasionSpeech(text) {
 async function applyConversationCue(cue, userText) {
   const config = getCurrentConversationConfig();
   const reply = cue.reply || "我听见了。继续说。";
+  const captionText = String(cue.roleReply || cue.reply || reply).trim() || reply;
   const score = clampInteger(cue.currentScore, config.scoreMin, config.scoreMax, state.persuasionScore);
   const delta = clampInteger(cue.scoreDelta, config.minDelta, config.maxDelta, 0);
   state.persuasionScore = score;
   state.persuasionRound = Math.min(config.maxRounds, state.persuasionRound + 1);
   state.userVariables.currentScore = state.persuasionScore;
   state.userVariables.roundIndex = state.persuasionRound;
+  state.lastConversationEvaluation = {
+    score: state.persuasionScore,
+    currentStatus: String(cue.currentStatus || "").trim(),
+    reason: String(cue.reason || "").trim(),
+  };
+  state.userVariables.currentStatus = state.lastConversationEvaluation.currentStatus;
+  state.userVariables.reason = state.lastConversationEvaluation.reason;
   if (ui.voiceReply) ui.voiceReply.textContent = isFinal ? "回应已生成" : reply;
-  if (cue.rawEvaluation && ui.kimiResponseDebug) ui.kimiResponseDebug.textContent = cue.rawEvaluation;
-  updateCaption(reply);
+  if (ui.kimiResponseDebug) {
+    ui.kimiResponseDebug.textContent = cue.rawEvaluation || `${reply}\n说服度：${state.persuasionScore}/${config.scoreMax} (${delta >= 0 ? "+" : ""}${delta})`;
+  }
+  updateCaption(captionText, { format: false });
   state.voice.conversation.push(
     { role: "user", content: userText },
     { role: "assistant", content: reply },
   );
   state.voice.conversation = state.voice.conversation.slice(-10);
-  await playConverReplyAfterSceneJump(reply);
+  await playConverReplyAfterSceneJump(reply, captionText);
+}
+
+function getScoreRoute(score = state.persuasionScore, flow = state.sceneFlow) {
+  const routes = normalizeSceneFlow(flow).scoreRoutes;
+  const numericScore = clampInteger(score, 0, 100, state.persuasionScore);
+  return routes.find((item) => item.sceneId && numericScore >= item.minScore && numericScore <= item.maxScore) || null;
 }
 
 function getScoreRouteSceneId(score = state.persuasionScore, flow = state.sceneFlow) {
-  const routes = normalizeSceneFlow(flow).scoreRoutes;
-  const numericScore = clampInteger(score, 0, 100, state.persuasionScore);
-  const route = routes.find((item) => item.sceneId && numericScore >= item.minScore && numericScore <= item.maxScore);
-  return route?.sceneId || "";
+  return getScoreRoute(score, flow)?.sceneId || "";
+}
+
+function getConverFlowTargetRoute(flow = state.sceneFlow, score = state.persuasionScore) {
+  const normalizedFlow = normalizeSceneFlow(flow);
+  if (normalizedFlow.mode === "auto") return { sceneId: normalizedFlow.nextSceneId || "", subtitle: "", type: "auto" };
+  if (normalizedFlow.mode === "score") {
+    const route = getScoreRoute(score, normalizedFlow);
+    return route ? { ...route, type: "score" } : { sceneId: "", subtitle: "", type: "score" };
+  }
+  return { sceneId: "", subtitle: "", type: "none" };
 }
 
 function getConverFlowTargetSceneId(flow = state.sceneFlow, score = state.persuasionScore) {
-  const normalizedFlow = normalizeSceneFlow(flow);
-  if (normalizedFlow.mode === "auto") return normalizedFlow.nextSceneId || "";
-  if (normalizedFlow.mode === "score") return getScoreRouteSceneId(score, normalizedFlow);
-  return "";
+  return getConverFlowTargetRoute(flow, score).sceneId || "";
 }
 
-async function playConverReplyAfterSceneJump(reply) {
+function makeScoreRouteCaption(routeSubtitle = "") {
+  return [String(routeSubtitle || "").trim(), formatLastConversationEvaluation()].filter(Boolean).join("\n\n");
+}
+
+function formatLastConversationEvaluation() {
+  const evaluation = state.lastConversationEvaluation || {};
+  const score = clampInteger(evaluation.score, 0, 100, state.persuasionScore);
+  const currentStatus = String(evaluation.currentStatus || "").trim();
+  const parts = [`【说服度】${score}%`];
+  if (currentStatus) parts.push(`【当前状态】\n${currentStatus}`);
+  return parts.join("\n\n");
+}
+async function playConverReplyAfterSceneJump(reply, captionText = reply) {
   if (!isConversationalEditor && !(isViewer && editorDataSpace === "conver") && !(isFinal && getSceneDataSpace() === "conver")) return;
   if (!state.voice.sttCompleted) return;
 
   const speakingSceneFlow = normalizeSceneFlow(state.sceneFlow);
-  const replySceneId = getConverFlowTargetSceneId(speakingSceneFlow, state.persuasionScore);
+  const replyRoute = getConverFlowTargetRoute(speakingSceneFlow, state.persuasionScore);
+  const replySceneId = replyRoute.sceneId || "";
   if (replySceneId && hasScene(replySceneId) && replySceneId !== state.currentSceneId) {
     await switchScene(replySceneId);
-    updateCaption(reply);
+    if (replyRoute.type === "score") updateCaption(makeScoreRouteCaption(replyRoute.subtitle), { format: false });
+    else updateCaption(captionText, { format: false });
   }
 
   const playback = state.ttsEnabled ? await speakReplyWithMeasuredAudio(reply) : { durationMs: 0 };
@@ -4396,9 +4511,11 @@ async function playConverReplyAfterSceneJump(reply) {
   await delay(2000);
 
   const replySceneFlow = normalizeSceneFlow(state.sceneFlow);
-  const nextSceneId = getConverFlowTargetSceneId(replySceneFlow, state.persuasionScore);
+  const nextRoute = getConverFlowTargetRoute(replySceneFlow, state.persuasionScore);
+  const nextSceneId = nextRoute.sceneId || "";
   if (nextSceneId && hasScene(nextSceneId) && nextSceneId !== state.currentSceneId) {
     await switchScene(nextSceneId);
+    if (nextRoute.type === "score") updateCaption(makeScoreRouteCaption(nextRoute.subtitle), { format: false });
   }
 }
 async function getConversationCue(text) {
@@ -4433,8 +4550,10 @@ function makeLocalConversationCue(text) {
   const scoreDelta = Math.max(config.minDelta, Math.min(config.maxDelta, text.length > 12 ? 4 : 0));
   return {
     reply: "我听见了你的想法，但这些理由还不够让我真正安心。你能不能再说得具体一点？",
+    roleReply: "我听见了你的想法，但这些理由还不够让我真正安心。你能不能再说得具体一点？",
     scoreDelta,
     currentScore: Math.min(config.scoreMax, Math.max(config.scoreMin, state.persuasionScore + scoreDelta)),
+    currentStatus: "Kimi 暂时不可用，系统使用本地规则维持对话。",
     reason: "本地兜底评分：Kimi 超时或暂时不可用。",
   };
 }
@@ -4756,8 +4875,8 @@ function selectItemByDepth(mode) {
   if (mode === "middle") state.selectedId = sorted[Math.floor(sorted.length / 2)].id;
 }
 
-function updateCaption(text) {
-  const caption = formatCaptionText(text);
+function updateCaption(text, { format = true } = {}) {
+  const caption = format ? formatCaptionText(text) : String(text || "").trim();
   if (ui.voiceCaptionPreview) ui.voiceCaptionPreview.textContent = caption;
   if (!ui.stageSubtitle) return;
   ui.stageSubtitle.textContent = caption;

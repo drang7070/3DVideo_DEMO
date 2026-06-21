@@ -1,4 +1,4 @@
-const http = require("node:http");
+﻿const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
@@ -1165,6 +1165,7 @@ function normalizeSceneGroups(groups, layouts, fallbackStartSceneId) {
         id,
         name: sanitizeSceneGroupName(group?.name || (id === "default-group" ? "默认场景组" : id)),
         finalStartSceneId: layouts[startSceneId] ? startSceneId : fallbackStartSceneId,
+        defaultEndingSceneId: layouts[sanitizeSceneId(group?.defaultEndingSceneId || "")] ? sanitizeSceneId(group.defaultEndingSceneId) : "",
         finalSelectable: group?.finalSelectable !== false,
         coverAsset: normalizeSceneGroupCoverAsset(group?.coverAsset),
         directorConfig: normalizeDirectorConfig(group?.directorConfig),
@@ -1735,11 +1736,13 @@ function buildConversationMessages(text, conversation, context = {}) {
   const config = normalizeConversationConfig(context.conversationConfig);
   const currentScore = clampNumber(context.currentScore, config.initialScore, config.scoreMin, config.scoreMax);
   const roundIndex = clampInteger(context.roundIndex, 1, 99, 1);
+  const historyText = formatConversationHistoryForPrompt(conversation);
   const systemPrompt = [
     "你正在控制一个影视作品人物，用户是正在与该人物对话的主人公。",
     "你必须先以该人物身份自然回应用户，然后根据给定的说服度评价标准给出当前总说服度。",
     "【角色回应】只能包含角色真正说出口的语言，不得包含动作、神态、心理描写、旁白、舞台指示或镜头描述。",
     "【角色回应】不要写括号、星号、破折号包裹的动作提示；不要写‘她低头’‘沉默了一下’‘叹气’这类非语言内容。",
+    "历史对话只供理解上下文，不是本轮输出格式示例；无论历史对话怎样，本轮都必须完整输出四个字段。",
     "不要判断剧情成功、失败或跳转；最终走向由前端在完成指定轮次后根据 currentScore 判断。",
     `本轮开始前说服度：${currentScore}%。分数范围：${config.scoreMin}-${config.scoreMax}。`,
     `当前轮次：${roundIndex}。配置轮次上限：${config.maxRounds}。`,
@@ -1755,15 +1758,28 @@ function buildConversationMessages(text, conversation, context = {}) {
     "【说服度】必须是 0-100 的百分比数字，例如：【说服度】72%。",
   ].join("\n");
   const userPrompt = [
-    `用户最新发言：${text}`,
+    historyText ? `【历史对话参考】\n${historyText}` : "【历史对话参考】\n无",
+    `\n用户最新发言：${text}`,
     "请以角色身份回应，并按照说服度评价标准输出当前评分。",
     "注意：【角色回应】只写角色台词，不写任何动作、表情、心理、旁白或舞台指示，因为该内容会直接送入 TTS 朗读。",
+    "必须严格按以下四段输出：\n【角色回应】\n...\n\n【说服度】72%\n\n【当前状态】\n...\n\n【原因】\n✓ ...\n✗ ...",
   ].join("\n");
   return [
     { role: "system", content: systemPrompt },
-    ...conversation,
     { role: "user", content: userPrompt },
   ];
+}
+
+function formatConversationHistoryForPrompt(conversation) {
+  if (!Array.isArray(conversation) || !conversation.length) return "";
+  return conversation
+    .slice(-6)
+    .map((message) => {
+      const label = message.role === "assistant" ? "角色上一轮回应" : "用户上一轮发言";
+      return `${label}：${String(message.content || "").trim()}`;
+    })
+    .filter((line) => !line.endsWith("："))
+    .join("\n");
 }
 
 function parseConversationCue(content, context = {}) {
@@ -1777,11 +1793,14 @@ function parseConversationCue(content, context = {}) {
   const reply = sanitizeConversationReply(
     extractBracketSection(raw, "角色回应") || extractBracketSection(raw, "当前状态") || raw.slice(0, 260),
   );
+  const currentStatus = extractBracketSection(raw, "当前状态") || "";
   const reason = extractBracketSection(raw, "原因") || "No scoring reason returned.";
   return {
     reply: reply.slice(0, 260),
+    roleReply: reply.slice(0, 260),
     scoreDelta,
     currentScore,
+    currentStatus: currentStatus.slice(0, 800),
     reason: reason.slice(0, 800),
     rawEvaluation: raw.slice(0, 3000),
   };
