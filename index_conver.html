@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
@@ -63,6 +63,10 @@
                 <label class="scene-group-director-config">
                   <span>用户对话任务要求</span>
                   <textarea id="sceneGroupUserPromptInput" rows="5" spellcheck="false" placeholder="说明用户作为主人公需要说服对方做什么、对话语气限制、可使用的信息、不可触碰的禁忌"></textarea>
+                </label>
+                <label class="scene-group-director-config">
+                  <span>初始分数</span>
+                  <input id="conversationInitialScoreInput" type="number" min="0" max="100" step="1" value="60" />
                 </label>
                 <label class="scene-group-director-config">
                   <span>说服度评价标准</span>

@@ -43,14 +43,14 @@ const DEFAULT_DIRECTOR_USER_PROMPT_TEMPLATE = [
 
 const GENERIC_DIRECTOR_SYSTEM_PROMPT = "You are a voice character. Use the current scene-group prompt, scene state, and audience input to produce short natural spoken dialogue. Output only the spoken line, no JSON and no Markdown.";
 
-const DEFAULT_CONVERSATION_SCORING_STANDARD = '# 谷雨说服度评分机制\n\n初始分：20分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。只写角色真正说出口的话，不写动作、神态、心理、旁白或舞台指示。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧';
+const DEFAULT_CONVERSATION_SCORING_STANDARD = '# 谷雨说服度评分机制\n\n初始分：60分\n\n总分100分\n\n## 1. 共情理解（0-25分）\n\n用户是否真正理解谷雨的处境，而不是空洞说教。\n\n加分关键词：\n\n* 理解家庭压力\n* 理解照顾弟弟的责任\n* 肯定她的付出和牺牲\n\n---\n\n## 2. 现实方案（0-35分）\n\n用户是否提出具体可行的办法。\n\n加分关键词：\n\n* 助学金\n* 奖学金\n* 学校帮助\n* 勤工俭学\n* 具体升学路径\n\n仅说“读书改变命运”不给分。\n\n---\n\n## 3. 打破认命思维（0-20分）\n\n用户是否让谷雨意识到：\n\n* 嫁人不一定解决问题\n* 读书是获得选择权\n* 她的人生不该只能依靠别人\n\n---\n\n## 4. 真诚打动（0-20分）\n\n用户是否让谷雨感受到：\n\n* 被关心\n* 被看见\n* 被相信\n\n允许通过情感表达获得加分。\n\n---\n\n# 结果判定\n\n0-39分\n几乎无法说动谷雨\n\n40-59分\n谷雨开始动摇\n\n60-79分\n谷雨认真考虑返校\n\n80-100分\n谷雨决定尝试重返校园\n\n---\n\n# 输出格式\n\n【角色回应】\n以谷雨身份对用户说的一段自然台词。只写角色真正说出口的话，不写动作、神态、心理、旁白或舞台指示。\n\n【说服度】72%\n\n【当前状态】\n谷雨已经开始认真思考回学校的可能性，但仍然担心家里的经济问题。\n\n【原因】\n✓ 理解了她的家庭压力\n✓ 提供了具体解决方案\n✓ 让她意识到嫁人不是唯一出路\n✗ 尚未完全解决她对弟弟的担忧';
 
 const DEFAULT_CONVERSATION_CONFIG = {
   characterProfile: "谷雨，影视作品中的少女角色。她背负家庭经济压力，需要照顾弟弟，正面对是否放弃读书、接受现实安排的艰难选择。她敏感、要强、早熟，不愿被空洞鼓励说服。",
   conversationRequirement: "用户作为主人公，需要在指定轮次内说服谷雨重新考虑返校或继续升学。回应必须符合谷雨的处境和性格，不要替用户下结论。",
   scoringRubric: DEFAULT_CONVERSATION_SCORING_STANDARD,
   maxRounds: 5,
-  initialScore: 20,
+  initialScore: 60,
   scoreMin: 0,
   scoreMax: 100,
   minDelta: -100,
@@ -1825,12 +1825,13 @@ function extractBracketSection(text, title) {
 
 function normalizeConversationConfig(value = {}) {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const initialScore = clampInteger(source.initialScore, 0, 100, DEFAULT_CONVERSATION_CONFIG.initialScore);
   return {
     characterProfile: String(source.characterProfile || DEFAULT_CONVERSATION_CONFIG.characterProfile).slice(0, 8000),
     conversationRequirement: String(source.conversationRequirement || DEFAULT_CONVERSATION_CONFIG.conversationRequirement).slice(0, 4000),
-    scoringRubric: String(source.scoringRubric || DEFAULT_CONVERSATION_CONFIG.scoringRubric).slice(0, 12000),
+    scoringRubric: syncScoringRubricInitialScore(String(source.scoringRubric || DEFAULT_CONVERSATION_CONFIG.scoringRubric).slice(0, 12000), initialScore),
     maxRounds: clampInteger(source.maxRounds, 1, 99, DEFAULT_CONVERSATION_CONFIG.maxRounds),
-    initialScore: clampInteger(source.initialScore, 0, 100, DEFAULT_CONVERSATION_CONFIG.initialScore),
+    initialScore,
     scoreMin: clampInteger(source.scoreMin, 0, 100, DEFAULT_CONVERSATION_CONFIG.scoreMin),
     scoreMax: clampInteger(source.scoreMax, 1, 100, DEFAULT_CONVERSATION_CONFIG.scoreMax),
     minDelta: clampInteger(source.minDelta, -100, 100, DEFAULT_CONVERSATION_CONFIG.minDelta),
@@ -1838,6 +1839,13 @@ function normalizeConversationConfig(value = {}) {
   };
 }
 
+function syncScoringRubricInitialScore(rubric, initialScore) {
+  const score = clampInteger(initialScore, 0, 100, DEFAULT_CONVERSATION_CONFIG.initialScore);
+  const text = String(rubric || DEFAULT_CONVERSATION_CONFIG.scoringRubric).trim();
+  const pattern = /(初始分\s*[：:]?\s*)\d{1,3}(\s*分?)/;
+  if (pattern.test(text)) return text.replace(pattern, `$1${score}$2`);
+  return `初始分：${score}分\n\n${text}`;
+}
 function clampInteger(value, min, max, fallback) {
   const number = Math.round(Number(value));
   if (!Number.isFinite(number)) return fallback;
