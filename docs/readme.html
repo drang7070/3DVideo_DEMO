@@ -461,7 +461,7 @@
           </div>
           <h1>3D沉浸式实时语音交互视频</h1>
           <p>
-            本文档从用户洞察、产品方案、AI 原生能力、落地可行性与商业化路径出发，说明如何把线性视频升级为可对话、可探索、可影响剧情的互动叙事体验。
+            本文档从用户洞察、产品方案、当前架构、AI 原生能力、落地可行性与商业化路径出发，说明项目如何把线性视频升级为可对话、可探索、可评分、可发布的互动叙事体验。
           </p>
         </div>
       </header>
@@ -487,7 +487,7 @@
           <section id="overview">
             <h2>项目概览</h2>
             <p class="lead">
-              <strong>荒岛求生</strong> 是一款面向沉浸式互动叙事的原型产品。它结合 AI 大模型、三维视差感知、实时语音交互与可视化创作工具，让用户从“观看故事”转向“参与故事”。
+              <strong>荒岛求生</strong> 是一款面向沉浸式互动叙事的原型产品。它结合 AI 大模型、三维视差感知、实时语音交互、对话评分机制与可视化创作工具，让用户从“观看故事”转向“参与故事”，也让创作者能够把普通场景和对话场景组织成可发布的体验入口。
             </p>
             <div class="meta">
               <div class="card">
@@ -500,18 +500,18 @@
               </div>
               <div class="card">
                 <span>用户侧入口</span>
-                <b>演示页 / 最终页</b>
+                <b>介绍页 / 演示页 / 最终页</b>
               </div>
               <div class="card">
                 <span>创作者侧入口</span>
-                <b>可视化编辑页</b>
+                <b>普通编辑器 / 对话编辑器</b>
               </div>
             </div>
             <div class="grid grid-3">
               <article class="card highlight">
                 <h4>Participation</h4>
                 <h3>从观看到参与</h3>
-                <p>用户不再只能评论或选择固定按钮，而是可以用自然语言表达判断，并让表达进入剧情系统。</p>
+                <p>用户不再只能评论或选择固定按钮，而是可以用自然语言表达判断，并让表达进入剧情、评分和场景跳转系统。</p>
               </article>
               <article class="card highlight">
                 <h4>Immersion</h4>
@@ -521,7 +521,7 @@
               <article class="card highlight">
                 <h4>Creation</h4>
                 <h3>从作品到工具</h3>
-                <p>创作者可以用低门槛编辑工具搭建互动剧情、配置分支逻辑，并借助 AI 生成内容素材。</p>
+                <p>创作者可以用低门槛编辑工具搭建互动剧情、配置分支逻辑、管理场景组，并借助 AI 生成内容素材与角色回应。</p>
               </article>
             </div>
           </section>
@@ -591,14 +591,14 @@
             </p>
             <h3>创作者内容升级</h3>
             <p>
-              创作者可以把原有线性视频改造成互动版本，通过简单设置实现分支逻辑与多结局结构，使内容从一次性消费转变为可反复体验，从而提升停留时长与传播效率。
+              创作者可以把原有线性视频改造成互动版本，通过普通编辑器完成场景图层和视差效果，通过对话编辑器配置用户说话场景、实时回复场景、评分区间和结局跳转，使内容从一次性消费转变为可反复体验。
             </p>
           </section>
 
           <section id="solution">
             <h2>产品方案</h2>
             <p class="lead">
-              产品以“沉浸式互动视频 + 创作平台工具”为核心，将传统线性视频转变为可参与、可对话、可探索的动态叙事体验。用户不再通过点击选项影响剧情，而是以自然语言表达判断，并通过视角移动参与信息获取。
+              产品以“沉浸式互动视频 + 创作平台工具”为核心，将传统线性视频转变为可参与、可对话、可探索、可发布的动态叙事体验。当前版本新增介绍页、普通编辑器、对话编辑器、单场景预览页和最终展示页，前端通过同一套运行时复用渲染、语音、TTS 与场景流转能力。
             </p>
             <div class="grid grid-3">
               <article class="card">
@@ -607,11 +607,11 @@
               </article>
               <article class="card">
                 <h3>交互层</h3>
-                <p>AI 语音对话替代传统选项操作。用户与剧情角色自然交流，系统通过语音识别和大模型理解意图，生成符合角色设定的回应并推动剧情分支。</p>
+                <p>AI 语音对话替代传统选项操作。用户与剧情角色自然交流，系统通过语音识别、大模型意图理解和说服度评分，生成符合角色设定的回应，并按分数区间推动剧情分支。</p>
               </article>
               <article class="card">
                 <h3>创作层</h3>
-                <p>创作者通过流程图式工具搭建剧情结构，为节点设置触发条件，并通过图层化方式快速构建三维视差效果。AI 可辅助生成角色设定、对话和分支建议。</p>
+                <p>创作者通过场景组组织剧情结构，为节点设置 none、auto、dialog、score 等流转模式，并通过图层化方式快速构建三维视差效果。AI 可辅助生成角色设定、对话和分支建议。</p>
               </article>
             </div>
             <div class="figure-grid">
@@ -629,81 +629,116 @@
           <section id="architecture">
             <h2>产品架构</h2>
             <p class="lead">
-              产品采用三层页面架构，从用户交互到底层服务实现清晰分工，并通过编辑页、演示页、最终页三种模式兼顾创作、体验与发布。
+              产品已经升级为单 Node 服务 + 静态前端的轻量架构。服务端集中在 <code>server.js</code>，前端核心逻辑集中在 <code>src/app.js</code>，不同页面通过 <code>body[data-mode]</code> 复用同一套运行时，并通过 <code>index</code> 与 <code>conver</code> 两个数据空间分别管理普通场景和对话场景。
             </p>
             <div class="figure-grid">
               <figure>
                 <img src="assets/manual/page-07-01.jpg" alt="编辑页界面" />
-                <figcaption>编辑页：Canvas 三维场景编辑器，支持素材管理与场景配置。</figcaption>
+                <figcaption>编辑页：Canvas 三维场景编辑器，支持素材管理、图层配置、场景组和剧情流转设置。</figcaption>
               </figure>
               <figure>
                 <img src="assets/manual/page-07-02.jpg" alt="产品架构图" />
-                <figcaption>产品架构速览：创作者、体验者、叙事引擎与 AI 服务共同构成闭环。</figcaption>
+                <figcaption>产品架构速览：创作者、体验者、叙事引擎、Kimi 与讯飞 TTS 共同构成互动闭环。</figcaption>
               </figure>
             </div>
             <div class="grid grid-3">
               <article class="card">
-                <h3>编辑页 <code>index.html</code></h3>
+                <h3>介绍页 <code>intro.html</code></h3>
                 <ul>
-                  <li>为创作者提供 Canvas 三维场景编辑器。</li>
-                  <li>支持导入 PNG、GIF、视频、音频素材，通过 <code>POST /api/assets</code> 存入本地素材库。</li>
-                  <li>可视化调整图层位置、深度、缩放、旋转、倾斜，通过 <code>POST /api/layout</code> 保存到 <code>data/scene-layout-db.json</code>。</li>
+                  <li>作为项目总览页，展示作品概念、核心体验、演示视频、移动端 Demo 与创作入口。</li>
+                  <li>通过 <code>intro-demo.html</code> 嵌入轻量体验，适合移动端快速感受 3D 视差。</li>
+                  <li>向非技术观众解释“实时对话、视角探索、多结局”的体验价值。</li>
                 </ul>
               </article>
               <article class="card">
-                <h3>演示页 <code>viewer.html</code></h3>
+                <h3>普通编辑器 <code>index.html</code></h3>
                 <ul>
-                  <li>负责场景播放与视线追踪，实现裸眼三维视差效果。</li>
-                  <li>通过 <code>getUserMedia</code> 调用摄像头，实现用户视线或头部追踪。</li>
+                  <li>使用 <code>index</code> 数据空间，为创作者提供 Canvas 三维场景编辑器。</li>
+                  <li>支持 PNG、JPG、GIF、MOV、MP4、WebM、音频等素材导入，通过 <code>POST /api/assets</code> 存入本地素材库。</li>
+                  <li>可视化调整图层位置、深度、缩放、旋转、倾斜和透明度，通过 <code>POST /api/layout?space=index</code> 保存。</li>
+                </ul>
+              </article>
+              <article class="card">
+                <h3>对话编辑器 <code>index_conver.html</code></h3>
+                <ul>
+                  <li>使用 <code>conver</code> 数据空间，专门配置说服、问答、实时回复等对话流程。</li>
+                  <li>支持用户说话场景、实时回复场景、初始分数、评分 Rubric 与分数区间跳转。</li>
+                  <li>可为场景组配置角色人设、用户任务、导演提示词和默认结局。</li>
+                </ul>
+              </article>
+              <article class="card">
+                <h3>预览页 <code>viewer.html</code></h3>
+                <ul>
+                  <li>用于预览指定场景，可通过 <code>?scene=</code>、<code>?group=</code>、<code>?space=index|conver</code> 指定来源。</li>
                   <li>通过 <code>GET /api/layout?id=sceneId</code> 获取场景配置，并用 Canvas 和 DOM 媒体层恢复画面。</li>
+                  <li>适合单独检查场景播放、循环策略、素材层级和视差效果。</li>
                 </ul>
               </article>
               <article class="card">
                 <h3>最终页 <code>final.html</code></h3>
                 <ul>
-                  <li>承载完整互动叙事体验，包含语音交互与剧情驱动。</li>
-                  <li>麦克风识别用户语音，转写为文本指令。</li>
-                  <li>AI 识别关键词和语义意图，切换目标场景或生成角色回应。</li>
+                  <li>默认合并 <code>index</code> 与 <code>conver</code> 两个数据空间中允许展示的场景组。</li>
+                  <li>承载完整互动叙事体验，包含摄像头追踪、文字/语音输入、Kimi 角色回应和讯飞 TTS。</li>
+                  <li>支持 <code>?group=场景组ID</code> 直接进入指定体验入口。</li>
+                </ul>
+              </article>
+              <article class="card">
+                <h3>服务层 <code>server.js</code></h3>
+                <ul>
+                  <li>提供静态资源、Range 请求、ETag、Gzip、素材上传、场景数据、AI 代理与健康检查。</li>
+                  <li>核心接口包括 <code>/api/layout</code>、<code>/api/settings</code>、<code>/api/director-cue</code>、<code>/api/conversation-cue</code>、<code>/api/tts-stream</code> 和 <code>/health</code>。</li>
+                  <li>当前没有 Vite、Docker 或前端构建步骤，便于本地演示和 PM2 部署。</li>
                 </ul>
               </article>
             </div>
             <div class="flow">
-              <span>用户语音与行为输入</span>
+              <span>介绍页导流</span>
               <i>→</i>
-              <span>语义理解与行为识别</span>
+              <span>场景组选择</span>
               <i>→</i>
-              <span>叙事状态更新</span>
+              <span>用户语音 / 文字 / 视角输入</span>
               <i>→</i>
-              <span>角色回应与剧情推进</span>
+              <span>Kimi 意图理解与评分</span>
+              <i>→</i>
+              <span>讯飞 TTS 与场景跳转</span>
               <i>→</i>
               <span>语音、字幕、画面输出</span>
             </div>
           </section>
 
+
           <section id="difference">
             <h2>创新差异</h2>
             <p class="lead">
-              本方案的创新不只是技术叠加，而是重新定义视频叙事中用户的位置。用户既可以决定“做什么”，也可以通过视角变化决定“看什么”。
+              本方案的创新不只是技术叠加，而是重新定义视频叙事中用户的位置。用户既可以决定“做什么”，也可以通过视角变化决定“看什么”，还可以通过自然语言和说服度评分影响角色态度与结局走向。
             </p>
             <div class="grid grid-2">
               <article class="card">
                 <h3>实时与角色对话</h3>
-                <p>产品将传统的选项点击转变为自然语言表达，让用户从被动选择预设路径，转变为主动参与叙事过程。</p>
+                <p>产品将传统的选项点击转变为自然语言表达，让用户从被动选择预设路径，转变为主动参与叙事过程。对话编辑器还能把多轮交流、角色人设和评分规则沉淀为可复用的创作配置。</p>
               </article>
               <article class="card">
                 <h3>自主决定视角</h3>
-                <p>用户不只影响行动，还可以通过视角变化参与信息获取。隐藏线索、场景细节和空间关系都可以成为叙事变量。</p>
+                <p>用户不只影响行动，还可以通过视角变化参与信息获取。隐藏线索、场景细节和空间关系都可以成为叙事变量，并由 Canvas 图层深度和视差参数驱动画面变化。</p>
+              </article>
+              <article class="card">
+                <h3>双编辑器协作</h3>
+                <p>普通编辑器负责场景视觉与基础流转，对话编辑器负责说服、问答、实时回复和分数区间跳转，最终页再合并两个数据空间中允许展示的场景组。</p>
+              </article>
+              <article class="card">
+                <h3>低门槛发布闭环</h3>
+                <p>项目不依赖复杂构建流程，单 Node 服务即可同时提供静态页面、素材上传、场景数据、AI 代理、TTS 代理和健康检查，便于快速演示和部署。</p>
               </article>
             </div>
             <div class="callout">
-              产品不是简单给视频增加互动按钮，而是把视频升级为可以被进入、被探索、被参与的叙事系统。
+              产品不是简单给视频增加互动按钮，而是把视频升级为可以被进入、被探索、被对话、被评分和被持续创作的叙事系统。
             </div>
           </section>
 
           <section id="ai">
             <h2>AI 原生能力</h2>
             <p class="lead">
-              AI 的核心价值在于把开放语言和用户行为转化为剧情变量，让用户从不可干预的观看者变成能影响剧情的参与者。
+              AI 的核心价值在于把开放语言、用户行为和对话评分转化为剧情变量，让用户从不可干预的观看者变成能影响剧情的参与者，也让创作者用更低成本搭建角色、分支和结局。
             </p>
             <div class="grid grid-2">
               <article class="card">
@@ -714,24 +749,25 @@
                   <li>AI 视频生成：TapNow / Seedance 1.5 / 2.0</li>
                   <li>AI 音乐生成：Minimax Music 2.6</li>
                   <li>自然语言低代码开发：Codex</li>
-                  <li>自然语言理解与意图识别：Kimi / Moonshot</li>
-                  <li>AI 语音合成：讯飞 TTS</li>
+                  <li>自然语言理解、导演提示与说服度评分：Kimi / Moonshot</li>
+                  <li>AI 语音合成：讯飞超拟人 TTS，支持一次性返回与流式返回</li>
                 </ul>
               </article>
               <article class="card">
                 <h3>AI 解决的问题</h3>
                 <ul>
                   <li>理解用户自由表达，而不是限制在固定选项。</li>
-                  <li>根据角色人设和剧情状态生成实时回复。</li>
-                  <li>将用户语音、情绪倾向和关键指令转化为剧情触发条件。</li>
-                  <li>把文本台词合成为符合角色设定的语音音频。</li>
+                  <li>根据角色人设、剧情状态和对话历史生成实时回复。</li>
+                  <li>将用户语音、情绪倾向、关键指令和说服效果转化为剧情触发条件。</li>
+                  <li>把文本台词合成为符合角色设定的语音音频，并与字幕和画面联动。</li>
                 </ul>
               </article>
             </div>
             <p>
-              系统通过 Moonshot/Kimi 大模型 API 理解用户语音转写文本，解析剧情决策、对话内容、情绪倾向和关键指令，触发场景跳转或角色交互指令。随后，Kimi 基于角色人设与剧情设定生成符合世界观的回复，并通过讯飞 TTS WebSocket API 转化为可播放语音，形成用户提问与角色实时回复的闭环。
+              系统通过 Moonshot/Kimi API 理解用户语音转写文本，解析剧情决策、对话内容、情绪倾向、关键指令和当前说服度，触发场景跳转或角色交互指令。普通互动走 <code>/api/director-cue</code>，对话评分走 <code>/api/conversation-cue</code>，随后通过讯飞 TTS 的 <code>/api/tts</code> 或 <code>/api/tts-stream</code> 转化为可播放语音，形成用户提问、角色回应、评分更新与场景流转的闭环。
             </p>
           </section>
+
 
           <section id="workflow">
             <h2>AI 技术方案</h2>
@@ -739,7 +775,7 @@
             <div class="grid grid-3">
               <article class="card">
                 <h3>编剧环节</h3>
-                <p>将主线剧情输入 ChatGPT，由 AI 辅助生成分支剧情、主角人设 Prompt 与世界观设定，快速搭建多分支叙事框架。</p>
+                <p>将主线剧情输入 ChatGPT，由 AI 辅助生成分支剧情、主角人设 Prompt、对话任务、评分 Rubric 与世界观设定，快速搭建多分支叙事框架。</p>
               </article>
               <article class="card">
                 <h3>美术与配乐</h3>
@@ -747,7 +783,7 @@
               </article>
               <article class="card">
                 <h3>开发环节</h3>
-                <p>基于开源三维项目，通过 Codex 自然语言开发完成 Canvas 三维场景编辑器、视线追踪功能，并接入 Kimi 与讯飞 TTS 搭建语音交互闭环。</p>
+                <p>基于单 Node 服务和原生前端，通过 Codex 自然语言开发完成 Canvas 三维场景编辑器、双数据空间、对话评分流程，并接入 Kimi 与讯飞 TTS 搭建语音交互闭环。</p>
               </article>
             </div>
             <div class="figure-grid">
@@ -768,23 +804,27 @@
             <div class="grid grid-3">
               <article class="card">
                 <h3>自由探索画面的 3D 效果</h3>
-                <p>摄像头采集用户面部数据，实时追踪视线与头部位置，计算视差参数并驱动 Canvas 场景图层更新，实现随用户视角变化的透视效果。</p>
+                <p>摄像头或移动设备姿态采集用户视角数据，实时计算视差参数并驱动 Canvas 场景图层更新；GIF 和视频通过 DOM/Canvas 叠加层保持播放，形成随视角变化的透视效果。</p>
               </article>
               <article class="card">
                 <h3>自然语言理解与场景流转</h3>
-                <p>用户语音转写为文本后发送至 Kimi/Moonshot API，AI 解析发言内容，匹配预设剧情逻辑，识别决策、情绪和关键指令。</p>
+                <p>用户语音转写为文本后发送至 Kimi/Moonshot API，AI 解析发言内容，匹配预设剧情逻辑，识别决策、情绪、关键指令和说服度变化。</p>
               </article>
               <article class="card">
                 <h3>实时对话生成与语音输出</h3>
-                <p>大模型根据角色人设与剧情设定生成台词，讯飞 TTS 实时合成角色音色，浏览器播放音频，完成实时对话闭环。</p>
+                <p>大模型根据角色人设、对话历史和当前场景生成台词，讯飞 TTS 合成角色音色，浏览器播放音频并同步字幕，完成实时对话闭环。</p>
               </article>
             </div>
+            <div class="callout">
+              当前场景流转支持 <code>none</code>、<code>auto</code>、<code>dialog</code>、<code>score</code> 四种模式：既能完成传统自动播放，也能根据关键词和说服度区间进入不同结局。
+            </div>
           </section>
+
 
           <section id="feasibility">
             <h2>落地可行性</h2>
             <p class="lead">
-              项目以“先验证体验、再扩展供给”为路线：先通过互动视频 Demo 验证用户是否愿意以说话和行为参与剧情，再逐步强化 AI 叙事能力，最终开放创作平台。
+              项目以“先验证体验、再扩展供给”为路线：当前 Demo 已完成单 Node 服务、普通编辑器、对话编辑器、最终展示页、AI 对话代理、TTS 代理和健康检查，具备本地演示与服务器部署的基础。
             </p>
             <figure>
               <img src="assets/manual/page-12-01.jpg" alt="三阶段产品路线图" />
@@ -793,26 +833,27 @@
             <div class="grid grid-3">
               <article class="card">
                 <h3>第一阶段：互动视频 Demo</h3>
-                <p>通过三维视差、语音交互与基础分支逻辑，验证用户是否愿意从观看转向参与。</p>
+                <p>通过三维视差、语音交互、基础分支逻辑和最终页场景组入口，验证用户是否愿意从观看转向参与。</p>
               </article>
               <article class="card">
                 <h3>第二阶段：AI 叙事能力</h3>
-                <p>引入剧情状态管理、对话记忆机制和多轮上下文理解，使用户行为持续影响叙事走向。</p>
+                <p>引入剧情状态管理、对话记忆、说服度评分和多轮上下文理解，使用户行为持续影响叙事走向。</p>
               </article>
               <article class="card">
                 <h3>第三阶段：创作平台</h3>
-                <p>提供低门槛创作工具，让创作者以流程图方式构建剧情结构，并由 AI 承担内容生成与补全。</p>
+                <p>继续完善普通编辑器和对话编辑器，让创作者以场景组方式构建剧情结构，并由 AI 承担内容生成、补全和测试。</p>
               </article>
             </div>
             <p>
-              从技术角度看，三维视差与头部追踪可以基于现有前端技术实现，语音识别和语音合成已经成熟落地，大语言模型也为自然语言交互与动态内容生成提供了基础能力。核心挑战主要在交互延迟、叙事一致性和状态管理复杂度，属于工程优化问题。
+              从技术角度看，项目没有前端构建步骤，依赖 Node.js 原生 HTTP、文件系统、fetch、WebSocket 与浏览器原生能力即可运行。服务端已支持静态资源缓存、Gzip、Range 请求、素材上传、Kimi 代理、讯飞 TTS 代理和 <code>/health</code> 健康检查；线上部署推荐 PM2 + Nginx + HTTPS，以满足摄像头和麦克风的安全上下文要求。
             </p>
           </section>
+
 
           <section id="business">
             <h2>商业化思考</h2>
             <p class="lead">
-              产品的商业价值不只在单个互动视频变现，更在于构建新的内容生产与消费体系。互动视频体验负责吸引用户、验证需求，创作平台能力负责扩大供给、形成规模。
+              产品的商业价值不只在单个互动视频变现，更在于构建新的内容生产与消费体系。介绍页负责讲清价值、最终页负责吸引用户并验证需求，普通编辑器和对话编辑器负责扩大供给、形成规模。
             </p>
             <figure>
               <img src="assets/manual/page-13-01.jpg" alt="商业版图" />
@@ -821,11 +862,11 @@
             <div class="grid grid-2">
               <article class="card">
                 <h3>用户侧付费</h3>
-                <p>互动叙事内容具备更强参与感与沉浸感，可以提升停留时长和重复体验意愿，为高质量剧情付费、不同结局解锁等模式提供基础。</p>
+                <p>互动叙事内容具备更强参与感与沉浸感，可以提升停留时长、重复体验意愿和结局探索欲，为高质量剧情付费、不同结局解锁等模式提供基础。</p>
               </article>
               <article class="card">
                 <h3>创作者工具收入</h3>
-                <p>创作平台可以提供高级编辑功能、AI 生成额度、数据分析服务等稳定收入来源，形成视频编辑工具与 AI 创作工具结合的新形态。</p>
+                <p>创作平台可以提供高级编辑功能、AI 生成额度、对话评分模板、TTS 音色额度、数据分析服务等稳定收入来源。</p>
               </article>
               <article class="card">
                 <h3>品牌内容合作</h3>
@@ -833,15 +874,16 @@
               </article>
               <article class="card">
                 <h3>AI 原生叙事平台</h3>
-                <p>随着用户在不同内容中的互动行为积累，选择路径与互动方式可以成为个性化数据基础，影响未来内容生成方向。</p>
+                <p>随着用户在不同内容中的互动行为积累，选择路径、对话方式和说服结果可以成为个性化数据基础，影响未来内容生成方向。</p>
               </article>
             </div>
           </section>
 
+
           <section id="upgrade">
             <h2>存量内容改造</h2>
             <p class="lead">
-              除原创互动叙事外，产品还可以对已有影视、短剧、动漫和 IP 内容进行 AI 互动化升级，激活老内容的二次生命周期。
+              除原创互动叙事外，产品还可以对已有影视、短剧、动漫、品牌短片和 IP 内容进行 AI 互动化升级。当前双数据空间和场景组机制，使“原视频空间化 + 新增对话节点 + 多结局发布”成为可复用流程。
             </p>
             <div class="figure-grid">
               <figure>
@@ -860,11 +902,11 @@
               </article>
               <article class="card">
                 <h3>可参与剧情升级</h3>
-                <p>AI 语音交互让用户在关键节点与角色实时交流、提出建议，甚至触发不同结局。例如替角色解释、推进调查方向、改变遗憾结局或与角色建立互动关系。</p>
+                <p>AI 语音交互让用户在关键节点与角色实时交流、提出建议，甚至触发不同结局；score 模式还能把对话结果转化为可解释的分数区间。</p>
               </article>
               <article class="card">
                 <h3>提升复播与用户洞察</h3>
-                <p>互动化改造可以提升老内容复播率、停留时长与讨论度，同时沉淀用户行为数据，用于内容推荐、广告匹配和 IP 开发。</p>
+                <p>互动化改造可以提升老内容复播率、停留时长与讨论度，同时沉淀用户行为、选择路径和对话数据，用于内容推荐、广告匹配和 IP 开发。</p>
               </article>
               <article class="card">
                 <h3>改造效率更高</h3>
@@ -875,6 +917,8 @@
               从行业角度看，未来的视频平台可能不再只是内容播放平台，而会逐渐转向内容体验平台。AI 驱动的互动叙事能力，有机会成为下一代内容增长的重要基础设施。
             </p>
           </section>
+
+
         </main>
       </div>
     </div>
