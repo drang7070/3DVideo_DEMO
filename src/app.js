@@ -1192,8 +1192,14 @@ async function applySceneLayout(layout, sceneId, preloadedAssets = new Map()) {
   updateRangeDisplays();
   setLayoutStatus(hasItems ? `已切换：${state.currentSceneName}` : `空场景：${state.currentSceneName}`, hasItems ? "good" : "warn");
   state.loadingScene = false;
+  updateFinalConverUserSpeechHint();
   maybeRunPendingAgeFeedback();
   return hasItems;
+}
+
+function updateFinalConverUserSpeechHint() {
+  if (!ui.voiceTranscript || !isFinal || getSceneDataSpace() !== "conver" || !state.userSpeechScene) return;
+  ui.voiceTranscript.textContent = "人物正在等待你的回答，点击“语音”说话。\n说话结束后点击“停止聆听”结束回答。";
 }
 
 async function loadSceneList() {
@@ -1271,6 +1277,7 @@ async function loadMergedFinalSettings() {
       });
     });
   });
+  sortFinalSceneGroups(groups);
   state.sceneGroups = groups;
   const requestedGroup = urlParams.get("group") || "";
   const resolvedGroup = resolveMergedFinalGroupId(requestedGroup) || state.sceneGroups[0]?.id || "";
@@ -1280,6 +1287,22 @@ async function loadMergedFinalSettings() {
   resetFinalConverChoiceState();
   renderSceneGroupOptions();
   renderFinalStartSceneOptions();
+}
+
+function sortFinalSceneGroups(groups) {
+  const orderedNames = ["荒岛求生", "山花烂漫时", "主角", "三体", "快速体验沉浸式3D效果"];
+  groups.sort((a, b) => {
+    const rankA = getFinalSceneGroupOrderRank(a, orderedNames);
+    const rankB = getFinalSceneGroupOrderRank(b, orderedNames);
+    if (rankA !== rankB) return rankA - rankB;
+    return 0;
+  });
+}
+
+function getFinalSceneGroupOrderRank(group, orderedNames) {
+  const name = getSceneGroupDisplayName(group);
+  const index = orderedNames.findIndex((keyword) => name.includes(keyword));
+  return index >= 0 ? index : orderedNames.length;
 }
 
 function resolveMergedFinalGroupId(groupId) {
@@ -4488,7 +4511,7 @@ function toggleVoiceListening() {
     state.voice.listenStartedAt = Date.now();
     ui.voiceButton.classList.add("active");
     ui.voiceButton.textContent = "停止聆听";
-    ui.voiceTranscript.textContent = "正在听，请说话。说话结束 4 秒后会自动发送。";
+    ui.voiceTranscript.textContent = "正在听，请说话。说话结束后请点击“停止聆听”，或在 4 秒后自动发送对话内容。";
     setVoiceStatus("正在聆听观众说话", "listening");
     startMicLevelMonitor();
     clearVoiceSilenceStopTimer();
