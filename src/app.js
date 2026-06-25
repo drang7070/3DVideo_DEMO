@@ -190,6 +190,9 @@ const state = {
   persuasionRound: 0,
   lastConversationEvaluation: null,
   activeTts: null,
+  activeTtsAudio: null,
+  activeTtsObjectUrl: "",
+  ttsPlaybackToken: 0,
   gifState: new Map(), // id → { element, player, pauseFrame }
   scenePlaybackToken: 0,
   paused: isFinal || isIntroDemo,
@@ -217,6 +220,7 @@ const state = {
     transcriptBuffer: "",
     interimTranscript: "",
     restartingRecognition: false,
+    suppressNextFinalize: false,
   },
 };
 
@@ -1200,6 +1204,33 @@ async function applySceneLayout(layout, sceneId, preloadedAssets = new Map()) {
 function updateFinalConverUserSpeechHint() {
   if (!ui.voiceTranscript || !isFinal || getSceneDataSpace() !== "conver" || !state.userSpeechScene) return;
   ui.voiceTranscript.textContent = "人物正在等待你的回答，点击“语音”说话。\n说话结束后点击“停止聆听”结束回答。";
+}
+
+function resetFinalVoiceDialogState() {
+  if (!isFinal) return;
+  const wasListening = state.voice.listening;
+  clearTimeout(state.voice.listenStopTimer);
+  state.voice.listenStopTimer = null;
+  clearVoiceSilenceStopTimer();
+  state.voice.suppressNextFinalize = wasListening;
+  state.voice.listening = false;
+  state.voice.manualStop = true;
+  state.voice.restartingRecognition = false;
+  state.voice.speechActive = false;
+  state.voice.transcriptBuffer = "";
+  state.voice.interimTranscript = "";
+  if (wasListening) {
+    try {
+      state.voice.recognition?.abort?.();
+    } catch {}
+  }
+  stopMicLevelMonitor();
+  ui.voiceButton?.classList.remove("active");
+  if (ui.voiceButton) ui.voiceButton.textContent = "语音";
+  if (ui.voiceTextInput) ui.voiceTextInput.value = "";
+  if (ui.voiceTranscript) ui.voiceTranscript.textContent = "";
+  if (ui.voiceReply) ui.voiceReply.textContent = "";
+  setVoiceStatus("等待输入。");
 }
 
 async function loadSceneList() {
@@ -2322,8 +2353,15 @@ async function handleSceneMediaEnded() {
     return;
   }
   if (state.sceneFlow.mode === "auto" && state.sceneFlow.nextSceneId) {
-    setLayoutStatus(`场景结束，正在进入：${getSceneLabel(state.sceneFlow.nextSceneId)}`);
-    await switchScene(state.sceneFlow.nextSceneId);
+    const sourceSceneId = state.currentSceneId;
+    const nextSceneId = state.sceneFlow.nextSceneId;
+    if (state.activeTts) {
+      setLayoutStatus("场景结束，等待 TTS 语音播放完成");
+      await waitForActiveTtsPlaybackComplete();
+    }
+    if (state.currentSceneId !== sourceSceneId || state.sceneFlow.nextSceneId !== nextSceneId) return;
+    setLayoutStatus(`场景结束，正在进入：${getSceneLabel(nextSceneId)}`);
+    await switchScene(nextSceneId);
     return;
   }
   if (state.sceneFlow.mode === "dialog") {
@@ -2402,6 +2440,11 @@ async function switchSceneGroup(groupId) {
 
 async function switchFinalSceneGroup(groupId) {
   if (!hasSceneGroup(groupId)) return;
+  if (groupId !== state.finalSceneGroupId) {
+    updateCaption("");
+    stopActiveTtsPlayback();
+    resetFinalVoiceDialogState();
+  }
   state.finalSceneGroupId = groupId;
   state.finalStartSceneId = getFinalSceneGroup().finalStartSceneId || "default";
   resetFinalPreloadState();
@@ -4602,6 +4645,10 @@ function getSpeechRecognition() {
   });
 
   recognition.addEventListener("end", () => {
+    if (state.voice.suppressNextFinalize) {
+      state.voice.suppressNextFinalize = false;
+      return;
+    }
     const elapsed = Date.now() - state.voice.listenStartedAt;
     if (state.voice.listening && !state.voice.manualStop && elapsed < state.voice.minListenMs) {
       state.voice.restartingRecognition = true;
@@ -4617,6 +4664,7 @@ function getSpeechRecognition() {
   });
 
   recognition.addEventListener("error", (event) => {
+    if (state.voice.suppressNextFinalize && event.error === "aborted") return;
     if (state.voice.listening && event.error === "no-speech") return;
     state.voice.manualStop = true;
     clearTimeout(state.voice.listenStopTimer);
@@ -4686,21 +4734,25 @@ async function handleAudienceSpeech(text) {
         return;
       }
       const cue = await getDirectorCue(text);
-      const flowHandled = await applyCueFlow(cue);
-      if (flowHandled) return;
+      if (shouldApplyCueFlowBeforeReply(cue)) {
+        const flowHandled = await applyCueFlow(cue);
+        if (flowHandled) return;
+      }
       const reply = cue.reply || makeFinalReply(text, switched);
       ui.voiceReply.textContent = reply;
       updateCaption(reply);
-      speakReply(reply);  // Start TTS in parallel with scene transition
+      await speakReply(reply);
       state.voice.conversation.push({ role: "user", content: text }, { role: "assistant", content: reply });
       state.voice.conversation = state.voice.conversation.slice(-10);
       if (cue.nextBeat && scriptBeats[cue.nextBeat]) ui.scriptBeatSelect.value = cue.nextBeat;
+      const flowHandled = await applyCueFlow(cue);
+      if (flowHandled) return;
       setVoiceStatus(switched ? "场景已切换，回应已生成" : "回应已生成");
     } catch (error) {
       const reply = makeFinalReply(text, switched);
       ui.voiceReply.textContent = reply;
       updateCaption(reply);
-      speakReply(reply);
+      await speakReply(reply);
       setVoiceStatus(error.message || "Kimi 暂不可用，已使用本地回应", "error");
     } finally {
       state.voice.busy = false;
@@ -4731,22 +4783,26 @@ async function handleAudienceSpeech(text) {
       return;
     }
     const cue = await getDirectorCue(text);
-    const flowHandled = await applyCueFlow(cue);
-    if (flowHandled) return;
+    if (shouldApplyCueFlowBeforeReply(cue)) {
+      const flowHandled = await applyCueFlow(cue);
+      if (flowHandled) return;
+    }
     const reply = cue.reply || "我听见了。画面会跟着你的选择继续向前。";
     ui.voiceReply.textContent = reply;
     updateCaption(reply);
-    speakReply(reply);  // Start TTS in parallel with scene transition
-    applyDirectorCue(cue);
+    await speakReply(reply);
     state.voice.conversation.push({ role: "user", content: text }, { role: "assistant", content: reply });
     state.voice.conversation = state.voice.conversation.slice(-10);
+    const flowHandled = await applyCueFlow(cue);
+    if (flowHandled) return;
+    applyDirectorCue(cue);
     setVoiceStatus(`已回应：${getCurrentBeat().title}`);
   } catch (error) {
     const fallback = makeLocalDirectorCue(text);
     applyDirectorCue(fallback);
     ui.voiceReply.textContent = fallback.reply;
     updateCaption(fallback.reply);
-    speakReply(fallback.reply);
+    await speakReply(fallback.reply);
     setVoiceStatus(error.message || "Kimi 暂不可用，已使用本地剧本回应", "error");
   } finally {
     state.voice.busy = false;
@@ -4984,6 +5040,11 @@ function resolveAgeFeedbackSceneId(flow) {
   const retryRoute = routes[1] || routes[0];
   if (flow.ageExtracted) return successRoute?.sceneId || flow.feedbackSceneId || "";
   return retryRoute?.sceneId || flow.feedbackSceneId || "";
+}
+
+function shouldApplyCueFlowBeforeReply(cue) {
+  const flow = cue?.flow;
+  return Boolean(flow && typeof flow === "object" && flow.ageRequired && flow.feedbackSceneId);
 }
 
 async function applyCueFlow(cue) {
@@ -5264,17 +5325,71 @@ function normalizeXfyunVoice(value) {
   return allowed.has(value) ? value : "x6_lingfeiyi_pro";
 }
 
+function registerActiveTtsAudio(audio, objectUrl = "") {
+  const current = state.activeTtsAudio;
+  if (current && current !== audio) {
+    current.pause?.();
+    cleanupActiveTtsAudio(current);
+  }
+  state.activeTtsAudio = audio;
+  state.activeTtsObjectUrl = objectUrl;
+  const cleanup = () => cleanupActiveTtsAudio(audio);
+  audio.addEventListener("ended", cleanup, { once: true });
+  audio.addEventListener("error", cleanup, { once: true });
+}
+
+function cleanupActiveTtsAudio(audio = state.activeTtsAudio) {
+  if (!audio || audio !== state.activeTtsAudio) return;
+  const objectUrl = state.activeTtsObjectUrl;
+  state.activeTtsAudio = null;
+  state.activeTtsObjectUrl = "";
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+}
+
+function stopActiveTtsPlayback() {
+  state.ttsPlaybackToken += 1;
+  const audio = state.activeTtsAudio;
+  if (audio) {
+    audio.pause?.();
+    try {
+      audio.currentTime = 0;
+    } catch {}
+    cleanupActiveTtsAudio(audio);
+  }
+  state.activeTts = null;
+}
+
+function trackActiveTts(promise) {
+  state.activeTts = promise;
+  promise.then(
+    () => {
+      if (state.activeTts === promise) state.activeTts = null;
+    },
+    () => {
+      if (state.activeTts === promise) state.activeTts = null;
+    },
+  );
+  return promise;
+}
+
+async function waitForActiveTtsPlaybackComplete() {
+  const promise = state.activeTts;
+  if (!promise) return;
+  await promise.catch(() => {});
+  if (state.activeTts === promise) state.activeTts = null;
+}
+
 function speakReplyWithMeasuredAudio(text) {
   const promise = playXfyunTtsFileWithDuration(text).catch((error) => {
     setVoiceStatus(`讯飞语音合成失败：${error.message}`, "error");
     return { durationMs: 0 };
   });
-  state.activeTts = promise;
-  return promise;
+  return trackActiveTts(promise);
 }
 
 async function playXfyunTtsFileWithDuration(text) {
   if (!text) return { durationMs: 0 };
+  const token = state.ttsPlaybackToken;
   setVoiceStatus("正在生成语音文件", "thinking");
   const response = await fetch("/api/tts", {
     method: "POST",
@@ -5287,16 +5402,22 @@ async function playXfyunTtsFileWithDuration(text) {
   }
   const blob = await response.blob();
   const audioUrl = URL.createObjectURL(blob);
+  if (token !== state.ttsPlaybackToken) {
+    URL.revokeObjectURL(audioUrl);
+    return { durationMs: 0 };
+  }
   const audio = new Audio(audioUrl);
+  registerActiveTtsAudio(audio, audioUrl);
   try {
     await waitForAudioMetadata(audio);
+    if (token !== state.ttsPlaybackToken) return { durationMs: 0 };
     const durationMs = Number.isFinite(audio.duration) ? audio.duration * 1000 : 0;
     setVoiceStatus(durationMs ? `语音时长 ${(durationMs / 1000).toFixed(1)} 秒，正在播放` : "正在播放语音", "thinking");
     await audio.play();
     await waitForAudioFinished(audio);
     return { durationMs };
   } finally {
-    URL.revokeObjectURL(audioUrl);
+    cleanupActiveTtsAudio(audio);
   }
 }
 
@@ -5321,23 +5442,25 @@ function waitForAudioFinished(audio) {
   return new Promise((resolve) => {
     audio.addEventListener("ended", resolve, { once: true });
     audio.addEventListener("error", resolve, { once: true });
+    audio.addEventListener("pause", resolve, { once: true });
   });
 }
+
 function speakReply(text) {
   const promise = playXfyunTts(text).catch((error) => {
     setVoiceStatus(`讯飞语音合成失败：${error.message}`, "error");
   });
-  state.activeTts = promise;
-  return promise;
+  return trackActiveTts(promise);
 }
 
 async function playXfyunTts(text) {
   if (!text) return;
+  const token = state.ttsPlaybackToken;
   setVoiceStatus("正在用讯飞聆飞逸合成语音", "thinking");
 
   // Progressive streaming via MediaSource: audio starts at first chunk, not after all synthesis
   if (typeof MediaSource !== "undefined" && MediaSource.isTypeSupported("audio/mpeg")) {
-    return playXfyunTtsStream(text);
+    return playXfyunTtsStream(text, token);
   }
 
   // Fallback for browsers without MP3 MediaSource support
@@ -5352,17 +5475,22 @@ async function playXfyunTts(text) {
   }
   const blob = await response.blob();
   const audioUrl = URL.createObjectURL(blob);
+  if (token !== state.ttsPlaybackToken) {
+    URL.revokeObjectURL(audioUrl);
+    return;
+  }
   const audio = new Audio(audioUrl);
-  audio.addEventListener("ended", () => URL.revokeObjectURL(audioUrl), { once: true });
-  audio.addEventListener("error", () => URL.revokeObjectURL(audioUrl), { once: true });
-  await audio.play();
-  await new Promise((resolve) => {
-    audio.addEventListener("ended", resolve, { once: true });
-    audio.addEventListener("error", resolve, { once: true });
-  });
+  registerActiveTtsAudio(audio, audioUrl);
+  try {
+    if (token !== state.ttsPlaybackToken) return;
+    await audio.play();
+    await waitForAudioFinished(audio);
+  } finally {
+    cleanupActiveTtsAudio(audio);
+  }
 }
 
-async function playXfyunTtsStream(text) {
+async function playXfyunTtsStream(text, token = state.ttsPlaybackToken) {
   const response = await fetch("/api/tts-stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -5375,8 +5503,13 @@ async function playXfyunTtsStream(text) {
 
   const mediaSource = new MediaSource();
   const objectUrl = URL.createObjectURL(mediaSource);
+  if (token !== state.ttsPlaybackToken) {
+    URL.revokeObjectURL(objectUrl);
+    try { await response.body?.cancel?.(); } catch {}
+    return;
+  }
   const audio = new Audio(objectUrl);
-  audio.addEventListener("error", () => URL.revokeObjectURL(objectUrl), { once: true });
+  registerActiveTtsAudio(audio, objectUrl);
 
   const sbReady = new Promise((resolve, reject) => {
     mediaSource.addEventListener(
@@ -5393,7 +5526,7 @@ async function playXfyunTtsStream(text) {
   });
 
   // Start playback eagerly — audio begins as soon as the first chunk lands
-  audio.play().catch(() => {});
+  if (token === state.ttsPlaybackToken) audio.play().catch(() => {});
   const sb = await sbReady;
   const reader = response.body.getReader();
 
@@ -5402,6 +5535,10 @@ async function playXfyunTtsStream(text) {
 
   try {
     for (;;) {
+      if (token !== state.ttsPlaybackToken) {
+        await reader.cancel().catch(() => {});
+        break;
+      }
       const { done, value } = await reader.read();
       if (done) break;
       if (sb.updating) await waitForUpdateEnd();
@@ -5416,12 +5553,8 @@ async function playXfyunTtsStream(text) {
     } catch {}
   }
 
-  await new Promise((resolve) => {
-    if (audio.ended) { resolve(); return; }
-    audio.addEventListener("ended", resolve, { once: true });
-    audio.addEventListener("error", resolve, { once: true });
-  });
-  URL.revokeObjectURL(objectUrl);
+  if (token === state.ttsPlaybackToken) await waitForAudioFinished(audio);
+  cleanupActiveTtsAudio(audio);
 }
 
 function getCurrentBeat() {
