@@ -112,6 +112,8 @@ const gzipCache = new Map();
 let assetsCache = null;
 // TTS in-flight deduplication: key → Promise<Buffer> (A-3)
 const ttsInFlight = new Map();
+const healthProbeCooldownMs = 60 * 1000;
+let healthProbeState = { lastRunAt: 0, inFlight: null, result: null };
 
 function staticCacheControl(ext) {
   return mediaExtensions.has(ext) ? "public, max-age=31536000" : "no-cache";
@@ -146,6 +148,11 @@ async function handleRequest(request, response) {
 
     if (url.pathname === "/health") {
       await handleHealth(request, response);
+      return;
+    }
+
+    if (url.pathname === "/health/probe") {
+      await handleHealthProbe(request, response);
       return;
     }
 
@@ -909,7 +916,7 @@ async function handleHealth(request, response) {
 
   const mem = process.memoryUsage();
   const healthy = dbCheck.ok;
-  sendJson(response, healthy ? 200 : 503, {
+  const payload = {
     status: healthy ? "ok" : "degraded",
     ts: new Date().toISOString(),
     uptime: Math.floor(process.uptime()),
@@ -922,7 +929,110 @@ async function handleHealth(request, response) {
       moonshot: { configured: Boolean(moonshotApiKey) },
       xfyun: { configured: Boolean(xfyunAppId && xfyunApiKey && xfyunApiSecret) },
     },
+    activeProbe: healthProbeState.result,
+  };
+
+  const acceptsHtml = String(request.headers.accept || "").includes("text/html");
+  if (acceptsHtml) {
+    sendHealthPage(response, healthy ? 200 : 503, payload, request.method === "HEAD");
+    return;
+  }
+  sendJson(response, healthy ? 200 : 503, payload);
+}
+
+async function handleHealthProbe(request, response) {
+  if (request.method !== "POST") {
+    sendJson(response, 405, { error: "method_not_allowed" });
+    return;
+  }
+
+  const now = Date.now();
+  if (healthProbeState.result && now - healthProbeState.lastRunAt < healthProbeCooldownMs) {
+    sendJson(response, 200, { ...healthProbeState.result, cached: true });
+    return;
+  }
+
+  if (!healthProbeState.inFlight) {
+    healthProbeState.inFlight = runExternalHealthProbes()
+      .then((result) => {
+        healthProbeState.lastRunAt = Date.now();
+        healthProbeState.result = result;
+        return result;
+      })
+      .finally(() => {
+        healthProbeState.inFlight = null;
+      });
+  }
+
+  const result = await healthProbeState.inFlight;
+  sendJson(response, 200, { ...result, cached: false });
+}
+
+async function runExternalHealthProbes() {
+  const [moonshot, xfyun] = await Promise.all([probeMoonshot(), probeXfyun()]);
+  return {
+    status: moonshot.ok && xfyun.ok ? "ok" : "degraded",
+    testedAt: new Date().toISOString(),
+    moonshot,
+    xfyun,
+  };
+}
+
+async function probeMoonshot() {
+  if (!moonshotApiKey) return { ok: false, error: "not_configured" };
+  const startedAt = Date.now();
+  try {
+    const { response, payload } = await requestMoonshot(
+      [{ role: "user", content: "Reply with OK only." }],
+      8,
+      { timeoutMs: Math.min(kimiTimeoutMs, 10000) },
+    );
+    return {
+      ok: Boolean(response.ok && payload.choices?.[0]?.message?.content),
+      status: response.status,
+      latencyMs: Date.now() - startedAt,
+      model: kimiModel,
+      error: response.ok ? null : String(payload.error?.message || response.statusText).slice(0, 160),
+    };
+  } catch (error) {
+    return { ok: false, latencyMs: Date.now() - startedAt, error: error.message.slice(0, 160) };
+  }
+}
+
+async function probeXfyun() {
+  if (!xfyunAppId || !xfyunApiKey || !xfyunApiSecret) return { ok: false, error: "not_configured" };
+  const startedAt = Date.now();
+  try {
+    const audio = await synthesizeXfyunTts("测试", xfyunTtsVoice);
+    return {
+      ok: audio.length > 0,
+      latencyMs: Date.now() - startedAt,
+      bytes: audio.length,
+      voice: xfyunTtsVoice,
+    };
+  } catch (error) {
+    return { ok: false, latencyMs: Date.now() - startedAt, error: error.message.slice(0, 160) };
+  }
+}
+
+function sendHealthPage(response, statusCode, payload, headOnly = false) {
+  const initial = JSON.stringify(payload).replace(/</g, "\\u003c");
+  const html = `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3DVideo 服务健康状态</title><style>
+body{margin:0;background:#0b1020;color:#e8edf8;font:15px/1.55 system-ui,sans-serif}.wrap{max-width:760px;margin:48px auto;padding:0 20px}h1{font-size:26px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.card{background:#151c30;border:1px solid #2b3655;border-radius:14px;padding:18px}.ok{color:#65d894}.bad{color:#ff7f86}.muted{color:#9facbf}button{margin:20px 0;padding:11px 18px;border:0;border-radius:10px;background:#627bff;color:white;font-weight:700;cursor:pointer}button:disabled{opacity:.55;cursor:wait}pre{white-space:pre-wrap;word-break:break-word;background:#080c17;padding:14px;border-radius:10px}a{color:#91a7ff}
+</style></head><body><main class="wrap"><h1>3DVideo 服务健康状态</h1><p id="base"></p><div class="grid"><section class="card"><h2>Moonshot</h2><div id="moonshot"></div></section><section class="card"><h2>讯飞 TTS</h2><div id="xfyun"></div></section></div><button id="probe">测试外部服务通讯</button><p class="muted">测试使用极短请求；结果缓存 60 秒，避免重复消耗额度。</p><pre id="details"></pre><p><a href="/health" id="jsonLink">查看 JSON</a></p></main><script>
+const initial=${initial};const base=document.querySelector('#base'),moon=document.querySelector('#moonshot'),xf=document.querySelector('#xfyun'),details=document.querySelector('#details'),btn=document.querySelector('#probe');
+function mark(ok){return '<strong class="'+(ok?'ok':'bad')+'">'+(ok?'正常':'异常')+'</strong>'}function render(data){base.innerHTML='应用：'+mark(data.status==='ok')+'　运行 '+(data.uptime??'-')+' 秒';const p=data.activeProbe;moon.innerHTML=p?mark(p.moonshot.ok)+'<br><span class="muted">'+(p.moonshot.latencyMs??'-')+' ms</span>':mark(data.checks.moonshot.configured)+'<br><span class="muted">已配置，尚未主动测试</span>';xf.innerHTML=p?mark(p.xfyun.ok)+'<br><span class="muted">'+(p.xfyun.latencyMs??'-')+' ms</span>':mark(data.checks.xfyun.configured)+'<br><span class="muted">已配置，尚未主动测试</span>';details.textContent=p?JSON.stringify(p,null,2):'点击按钮执行一次真实通讯测试。'}render(initial);
+btn.onclick=async()=>{btn.disabled=true;btn.textContent='测试中…';try{const r=await fetch('/health/probe',{method:'POST'});const p=await r.json();render({...initial,activeProbe:p});}catch(e){details.textContent='测试请求失败：'+e.message}finally{btn.disabled=false;btn.textContent='测试外部服务通讯'}};
+document.querySelector('#jsonLink').onclick=e=>{e.preventDefault();fetch('/health',{headers:{Accept:'application/json'}}).then(r=>r.json()).then(j=>{details.textContent=JSON.stringify(j,null,2)})};
+</script></body></html>`;
+  response.writeHead(statusCode, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Content-Length": Buffer.byteLength(html),
+    "Cache-Control": "no-store",
   });
+  response.end(headOnly ? undefined : html);
 }
 
 function handleScriptBeats(response) {
